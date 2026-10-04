@@ -202,10 +202,10 @@ class UsuarioSecurityTest {
 
     @Test
     void exclusaoDeClienteExigeEAceitaTokenNoCabecalho() throws Exception {
-        mvc.perform(delete("/api/clientes/cliente-1").with(user("atendente").roles("ATENDENTE")))
+        mvc.perform(delete("/api/clientes/cliente-1").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(clienteService);
-        mvc.perform(delete("/api/clientes/cliente-1").with(user("atendente").roles("ATENDENTE")).with(csrf().asHeader()))
+        mvc.perform(delete("/api/clientes/cliente-1").with(user("admin").roles("ADMIN")).with(csrf().asHeader()))
                 .andExpect(status().isNoContent());
         verify(clienteService).excluir("cliente-1");
     }

@@ -13,6 +13,14 @@ public class PedidoService {
     private PedidoRepository pedidoRepository;
 
     public Pedido criarPedido(Pedido pedido) {
+        if (pedido.getId() != null) {
+            throw new IllegalArgumentException("O cadastro de um novo pedido não pode informar ID.");
+        }
+        if (pedido.getStatus() != null && !pedido.getStatus().isBlank()
+                && !"RECEBIDO".equals(pedido.getStatus())) {
+            throw new IllegalArgumentException("Um novo pedido deve iniciar com o status RECEBIDO.");
+        }
+        pedido.setStatus("RECEBIDO");
         return pedidoRepository.save(pedido);
     }
 

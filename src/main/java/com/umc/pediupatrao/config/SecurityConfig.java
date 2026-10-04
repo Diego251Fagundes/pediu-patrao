@@ -3,6 +3,7 @@ package com.umc.pediupatrao.config;
 import com.umc.pediupatrao.service.UsuarioDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -48,6 +49,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/error", "/css/**", "/dist/**", "/plugins/**", "/js/**", "/images/**").permitAll()
                         .requestMatchers("/usuarios", "/usuarios/**", "/api/usuarios", "/api/usuarios/**", "/admin").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/clientes", "/api/clientes").hasAnyRole("ADMIN", "GERENTE", "ATENDENTE")
+                        .requestMatchers(HttpMethod.GET, "/clientes/novo", "/clientes/editar/*").hasRole("ATENDENTE")
+                        .requestMatchers(HttpMethod.POST, "/clientes/salvar", "/clientes/editar/*", "/api/clientes").hasRole("ATENDENTE")
+                        .requestMatchers(HttpMethod.PUT, "/api/clientes/*").hasRole("ATENDENTE")
+                        .requestMatchers(HttpMethod.DELETE, "/api/clientes/*").hasRole("ADMIN")
+                        .requestMatchers("/clientes/**", "/api/clientes", "/api/clientes/**").denyAll()
+                        .requestMatchers(HttpMethod.GET, "/pedidos", "/api/pedidos").hasAnyRole("ADMIN", "GERENTE", "ATENDENTE")
+                        .requestMatchers(HttpMethod.POST, "/api/pedidos").hasAnyRole("GERENTE", "ATENDENTE")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/*/status").hasRole("GERENTE")
+                        .requestMatchers("/pedidos/**", "/api/pedidos", "/api/pedidos/**").denyAll()
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form

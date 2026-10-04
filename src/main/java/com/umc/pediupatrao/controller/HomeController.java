@@ -11,6 +11,7 @@ import com.umc.pediupatrao.service.PedidoService;
 import com.umc.pediupatrao.service.ProdutoService;
 import com.umc.pediupatrao.service.UsuarioService;
 import java.util.List;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -36,6 +37,13 @@ public class HomeController {
 
     @Autowired
     private UsuarioService usuarioService;
+
+    @ModelAttribute
+    public void permissoes(HttpServletRequest request, Model model) {
+        model.addAttribute("podeAdministrarUsuarios", request.isUserInRole("ADMIN"));
+        model.addAttribute("podeEditarClientes", request.isUserInRole("ATENDENTE"));
+        model.addAttribute("podeExcluirClientes", request.isUserInRole("ADMIN"));
+    }
 
     @GetMapping("/login")
     public String login() {
