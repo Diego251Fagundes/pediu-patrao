@@ -38,6 +38,7 @@ class UsuarioSecurityTest {
     @MockitoBean ClienteService clienteService;
     @MockitoBean ProdutoService produtoService;
     @MockitoBean PedidoService pedidoService;
+    @MockitoBean AuditoriaService auditoriaService;
 
     private Usuario usuario(String perfil) {
         Usuario usuario = new Usuario();
@@ -207,6 +208,6 @@ class UsuarioSecurityTest {
         verifyNoInteractions(clienteService);
         mvc.perform(delete("/api/clientes/cliente-1").with(user("admin").roles("ADMIN")).with(csrf().asHeader()))
                 .andExpect(status().isNoContent());
-        verify(clienteService).excluir("cliente-1");
+        verify(clienteService).excluir(eq("cliente-1"), any());
     }
 }

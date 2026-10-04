@@ -1,20 +1,24 @@
 package com.umc.pediupatrao.service;
 
 import com.umc.pediupatrao.entity.Pedido;
-import com.umc.pediupatrao.repository.PedidoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import com.umc.pediupatrao.entity.ItemPedido;
 import com.umc.pediupatrao.entity.Produto;
 import com.umc.pediupatrao.repository.ClienteRepository;
+import com.umc.pediupatrao.repository.PedidoRepository;
 import com.umc.pediupatrao.repository.ProdutoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.security.core.Authentication;
+import java.util.List;
 
 @Service
 public class PedidoService {
@@ -37,7 +41,10 @@ public class PedidoService {
     @Autowired
     private ProdutoRepository produtoRepository;
 
-    public Pedido criarPedido(Pedido pedido, String responsavel) {
+    @Autowired
+    private AuditoriaService auditoriaService;
+
+    public Pedido criarPedido(Pedido pedido, Authentication authentication) {
         if (pedido.getId() != null) {
             throw new IllegalArgumentException("O cadastro de um novo pedido não pode informar ID.");
         }
@@ -80,13 +87,16 @@ public class PedidoService {
         pedido.setItens(itens);
         pedido.setDescontoPercentual(BigDecimal.ZERO);
         pedido.setValorTotal(total.setScale(2, RoundingMode.HALF_UP));
-        pedido.setResponsavelRegistro(responsavel);
+        pedido.setResponsavelRegistro(authentication.getName());
         pedido.setDataHoraEntrada(LocalDateTime.now());
         pedido.setDataHoraSaida(null);
         pedido.setResponsavelSaida(null);
         pedido.setJustificativaCancelamento(null);
         pedido.setStatus("RECEBIDO");
-        return pedidoRepository.save(pedido);
+        Pedido salvo = pedidoRepository.save(pedido);
+        auditoriaService.registrar("CADASTRO_PEDIDO", "PEDIDO", salvo.getId(), Map.of(), valoresPedido(salvo),
+                null, authentication);
+        return salvo;
     }
 
     public List<Pedido> listarPedidos() {
@@ -111,17 +121,24 @@ public class PedidoService {
         return pedido;
     }
 
-    public Pedido cancelarPedido(String id, String justificativa) {
+    public Pedido cancelarPedido(String id, String justificativa, Authentication authentication) {
         Pedido pedido = buscarPedidoAntesDaSaida(id);
         if (justificativa == null || justificativa.isBlank()) {
             throw new IllegalArgumentException("Informe a justificativa do cancelamento.");
         }
+        Map<String, String> anteriores = new HashMap<>();
+        anteriores.put("status", pedido.getStatus());
+        anteriores.put("justificativaCancelamento", pedido.getJustificativaCancelamento());
         pedido.setStatus("CANCELADO");
         pedido.setJustificativaCancelamento(justificativa.trim());
-        return pedidoRepository.save(pedido);
+        Pedido salvo = pedidoRepository.save(pedido);
+        auditoriaService.registrar("CANCELAMENTO_PEDIDO", "PEDIDO", salvo.getId(), anteriores,
+                Map.of("status", salvo.getStatus(), "justificativaCancelamento", salvo.getJustificativaCancelamento()),
+                salvo.getJustificativaCancelamento(), authentication);
+        return salvo;
     }
 
-    public Pedido aplicarDesconto(String id, BigDecimal percentual) {
+    public Pedido aplicarDesconto(String id, BigDecimal percentual, Authentication authentication) {
         Pedido pedido = buscarPedidoAntesDaSaida(id);
         if (percentual == null || percentual.signum() < 0 || percentual.compareTo(new BigDecimal("20")) > 0) {
             throw new IllegalArgumentException("O desconto deve estar entre 0% e 20%.");
@@ -137,13 +154,25 @@ public class PedidoService {
             }
             subtotal = subtotal.add(item.getPrecoUnitario().multiply(BigDecimal.valueOf(item.getQuantidade())));
         }
+        Map<String, String> anteriores = valoresDesconto(pedido);
         pedido.setDescontoPercentual(percentual);
         pedido.setValorTotal(subtotal.multiply(BigDecimal.ONE.subtract(percentual.movePointLeft(2)))
                 .setScale(2, RoundingMode.HALF_UP));
-        return pedidoRepository.save(pedido);
+        Pedido salvo = pedidoRepository.save(pedido);
+        auditoriaService.registrar("DESCONTO_PEDIDO", "PEDIDO", salvo.getId(), anteriores,
+                valoresDesconto(salvo), null, authentication);
+        return salvo;
     }
 
-    public Pedido atualizarStatus(String id, String status, String responsavel) {
+    private Map<String, String> valoresDesconto(Pedido pedido) {
+        Map<String, String> valores = new HashMap<>();
+        valores.put("descontoPercentual", pedido.getDescontoPercentual() == null
+                ? null : pedido.getDescontoPercentual().toPlainString());
+        valores.put("valorTotal", pedido.getValorTotal() == null ? null : pedido.getValorTotal().toPlainString());
+        return valores;
+    }
+
+    public Pedido atualizarStatus(String id, String status, Authentication authentication) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado."));
         if ("CANCELADO".equals(pedido.getStatus())) {
@@ -157,12 +186,44 @@ public class PedidoService {
         if (status == null || !proximos.contains(status)) {
             throw new IllegalArgumentException("Transição de status não permitida para este pedido.");
         }
+        Map<String, String> anteriores = valoresPedido(pedido);
         if ("SAIU_PARA_ENTREGA".equals(status) || "RETIRADO".equals(status)) {
             pedido.setDataHoraSaida(LocalDateTime.now());
-            pedido.setResponsavelSaida(responsavel);
+            pedido.setResponsavelSaida(authentication.getName());
         }
         pedido.setStatus(status);
-        return pedidoRepository.save(pedido);
+        Pedido salvo = pedidoRepository.save(pedido);
+        auditoriaService.registrar("ALTERACAO_STATUS_PEDIDO", "PEDIDO", salvo.getId(), anteriores,
+                valoresPedido(salvo), null, authentication);
+        return salvo;
+    }
+
+    private Map<String, String> valoresPedido(Pedido pedido) {
+        Map<String, String> valores = new LinkedHashMap<>();
+        valores.put("clienteId", pedido.getClienteId());
+        valores.put("status", pedido.getStatus());
+        valores.putAll(valoresDesconto(pedido));
+        valores.put("responsavelRegistro", pedido.getResponsavelRegistro());
+        valores.put("dataHoraEntrada", Objects.toString(pedido.getDataHoraEntrada(), null));
+        valores.put("dataHoraSaida", Objects.toString(pedido.getDataHoraSaida(), null));
+        valores.put("responsavelSaida", pedido.getResponsavelSaida());
+        valores.put("justificativaCancelamento", pedido.getJustificativaCancelamento());
+        valores.put("tipoPizza", pedido.getTipoPizza());
+        valores.put("sabor", pedido.getSabor());
+        if (pedido.getQuantidade() != 0) valores.put("quantidade", Integer.toString(pedido.getQuantidade()));
+        if (pedido.getItens() != null) {
+            for (int indice = 0; indice < pedido.getItens().size(); indice++) {
+                ItemPedido item = pedido.getItens().get(indice);
+                if (item == null) continue;
+                String campo = "itens[" + indice + "][";
+                valores.put(campo + "produtoId]", item.getProdutoId());
+                valores.put(campo + "nomeProduto]", item.getNomeProduto());
+                valores.put(campo + "quantidade]", Integer.toString(item.getQuantidade()));
+                valores.put(campo + "precoUnitario]", item.getPrecoUnitario() == null
+                        ? null : item.getPrecoUnitario().toPlainString());
+            }
+        }
+        return valores;
     }
 
 }

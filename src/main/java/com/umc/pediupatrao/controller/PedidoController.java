@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.math.BigDecimal;
 import java.util.Map;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/pedidos")
@@ -19,7 +19,7 @@ public class PedidoController {
 
     @PostMapping
     public Pedido criarPedido(@RequestBody Pedido pedido, Authentication authentication) {
-        return pedidoService.criarPedido(pedido, authentication.getName());
+        return pedidoService.criarPedido(pedido, authentication);
     }
 
     @GetMapping
@@ -30,17 +30,19 @@ public class PedidoController {
     @PutMapping("/{id}/status")
     public Pedido atualizarStatus(@PathVariable String id, @RequestParam String status,
             Authentication authentication) {
-        return pedidoService.atualizarStatus(id, status, authentication.getName());
+        return pedidoService.atualizarStatus(id, status, authentication);
     }
 
     @PostMapping("/{id}/cancelar")
-    public Pedido cancelarPedido(@PathVariable String id, @RequestParam String justificativa) {
-        return pedidoService.cancelarPedido(id, justificativa);
+    public Pedido cancelarPedido(@PathVariable String id, @RequestParam String justificativa,
+            Authentication authentication) {
+        return pedidoService.cancelarPedido(id, justificativa, authentication);
     }
 
     @PutMapping("/{id}/desconto")
-    public Pedido aplicarDesconto(@PathVariable String id, @RequestParam BigDecimal percentual) {
-        return pedidoService.aplicarDesconto(id, percentual);
+    public Pedido aplicarDesconto(@PathVariable String id, @RequestParam BigDecimal percentual,
+            Authentication authentication) {
+        return pedidoService.aplicarDesconto(id, percentual, authentication);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

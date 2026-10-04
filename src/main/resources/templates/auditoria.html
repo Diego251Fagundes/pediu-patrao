@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Auditoria</title>
+</head>
+<body>
+<div th:fragment="content">
+    <h2 class="fw-bold mb-4"><i class="bi bi-clock-history me-2 text-primary"></i>Auditoria</h2>
+    <div class="card shadow-sm">
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-4">Data e hora</th>
+                        <th>Usuário / perfil</th>
+                        <th>Operação</th>
+                        <th>Entidade / ID</th>
+                        <th>Campos modificados</th>
+                        <th>Justificativa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${#lists.isEmpty(auditorias)}">
+                        <td colspan="6" class="text-center text-muted py-5">Nenhum registro de auditoria encontrado.</td>
+                    </tr>
+                    <tr th:each="evento : ${auditorias}">
+                        <td class="ps-4" th:text="${#temporals.format(evento.dataHora, 'dd/MM/yyyy HH:mm:ss')}"></td>
+                        <td>
+                            <span th:text="${evento.usuario}"></span>
+                            <small class="d-block text-muted" th:text="${evento.perfil}"></small>
+                        </td>
+                        <td th:text="${#strings.replace(evento.operacao, '_', ' ')}"></td>
+                        <td>
+                            <span th:text="${evento.entidade}"></span>
+                            <small class="d-block text-muted" th:text="${evento.entidadeId}"></small>
+                        </td>
+                        <td>
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>Campo</th><th>Anterior</th><th>Novo</th></tr></thead>
+                                <tbody>
+                                    <tr th:each="campo : ${evento.valoresNovos}">
+                                        <td th:text="${campo.key}"></td>
+                                        <td th:text="${evento.valoresAnteriores[campo.key] != null ? evento.valoresAnteriores[campo.key] : '—'}"></td>
+                                        <td th:text="${campo.value != null ? campo.value : '—'}"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </td>
+                        <td th:text="${evento.justificativa ?: '—'}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

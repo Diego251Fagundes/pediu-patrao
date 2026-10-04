@@ -63,6 +63,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/pedidos/*/cancelar", "/pedidos/*/cancelar", "/pedidos/*/desconto").hasRole("GERENTE")
                         .requestMatchers(HttpMethod.PUT, "/api/pedidos/*/desconto").hasRole("GERENTE")
                         .requestMatchers("/pedidos/**", "/api/pedidos", "/api/pedidos/**").denyAll()
+                        .requestMatchers(HttpMethod.GET, "/auditoria", "/api/auditoria").hasAnyRole("ADMIN", "GERENTE")
+                        .requestMatchers("/auditoria", "/auditoria/**", "/api/auditoria", "/api/auditoria/**").denyAll()
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form

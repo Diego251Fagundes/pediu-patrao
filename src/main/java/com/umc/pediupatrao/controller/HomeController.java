@@ -11,9 +11,10 @@ import com.umc.pediupatrao.service.ClienteService;
 import com.umc.pediupatrao.service.PedidoService;
 import com.umc.pediupatrao.service.ProdutoService;
 import com.umc.pediupatrao.service.UsuarioService;
+import com.umc.pediupatrao.service.AuditoriaService;
 import java.util.List;
-import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.math.BigDecimal;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -43,6 +44,9 @@ public class HomeController {
     @Autowired
     private UsuarioService usuarioService;
 
+    @Autowired
+    private AuditoriaService auditoriaService;
+
     @ModelAttribute
     public void permissoes(HttpServletRequest request, Model model) {
         model.addAttribute("podeAdministrarUsuarios", request.isUserInRole("ADMIN"));
@@ -50,6 +54,7 @@ public class HomeController {
         model.addAttribute("podeExcluirClientes", request.isUserInRole("ADMIN"));
         model.addAttribute("podeRegistrarPedidos", request.isUserInRole("GERENTE") || request.isUserInRole("ATENDENTE"));
         model.addAttribute("podeGerenciarPedidos", request.isUserInRole("GERENTE"));
+        model.addAttribute("podeConsultarAuditoria", request.isUserInRole("ADMIN") || request.isUserInRole("GERENTE"));
     }
 
     @GetMapping("/login")
@@ -155,7 +160,7 @@ public class HomeController {
     public String atualizarStatusPedido(@PathVariable String id, @RequestParam String status,
             Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
-            pedidoService.atualizarStatus(id, status, authentication.getName());
+            pedidoService.atualizarStatus(id, status, authentication);
             redirectAttributes.addFlashAttribute("sucesso", "Status do pedido atualizado com sucesso!");
         } catch (IllegalArgumentException exception) {
             redirectAttributes.addFlashAttribute("erro", exception.getMessage());
@@ -165,9 +170,9 @@ public class HomeController {
 
     @PostMapping("/pedidos/{id}/cancelar")
     public String cancelarPedido(@PathVariable String id, @RequestParam String justificativa,
-            RedirectAttributes redirectAttributes) {
+            Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
-            pedidoService.cancelarPedido(id, justificativa);
+            pedidoService.cancelarPedido(id, justificativa, authentication);
             redirectAttributes.addFlashAttribute("sucesso", "Pedido cancelado com sucesso!");
         } catch (IllegalArgumentException exception) {
             redirectAttributes.addFlashAttribute("erro", exception.getMessage());
@@ -177,9 +182,9 @@ public class HomeController {
 
     @PostMapping("/pedidos/{id}/desconto")
     public String aplicarDescontoPedido(@PathVariable String id, @RequestParam BigDecimal percentual,
-            RedirectAttributes redirectAttributes) {
+            Authentication authentication, RedirectAttributes redirectAttributes) {
         try {
-            pedidoService.aplicarDesconto(id, percentual);
+            pedidoService.aplicarDesconto(id, percentual, authentication);
             redirectAttributes.addFlashAttribute("sucesso", "Desconto aplicado com sucesso!");
         } catch (IllegalArgumentException exception) {
             redirectAttributes.addFlashAttribute("erro", exception.getMessage());
@@ -200,7 +205,7 @@ public class HomeController {
     public String salvarPedido(@ModelAttribute Pedido pedido, Authentication authentication,
             Model model, RedirectAttributes redirectAttributes) {
         try {
-            pedidoService.criarPedido(pedido, authentication.getName());
+            pedidoService.criarPedido(pedido, authentication);
         } catch (IllegalArgumentException exception) {
             model.addAttribute("pedido", pedido);
             model.addAttribute("erro", exception.getMessage());
@@ -250,8 +255,13 @@ public class HomeController {
 
     @PostMapping("/clientes/salvar")
     public String salvarCliente(@ModelAttribute Cliente cliente,
-            RedirectAttributes redirectAttributes) {
-        clienteService.salvar(cliente);
+            Authentication authentication, RedirectAttributes redirectAttributes) {
+        try {
+            clienteService.salvar(cliente, authentication);
+        } catch (IllegalArgumentException exception) {
+            redirectAttributes.addFlashAttribute("erro", exception.getMessage());
+            return "redirect:/clientes";
+        }
         redirectAttributes.addFlashAttribute("sucesso", "Cliente criado com sucesso!");
         return "redirect:/clientes";
     }
@@ -276,14 +286,26 @@ public class HomeController {
     @PostMapping("/clientes/editar/{id}")
     public String atualizarCliente(@PathVariable String id,
             @ModelAttribute Cliente cliente,
-            RedirectAttributes redirectAttributes) {
+            Authentication authentication, RedirectAttributes redirectAttributes) {
         cliente.setId(id);
-        clienteService.salvar(cliente);
+        try {
+            clienteService.salvar(cliente, authentication);
+        } catch (IllegalArgumentException exception) {
+            redirectAttributes.addFlashAttribute("erro", exception.getMessage());
+            return "redirect:/clientes";
+        }
         redirectAttributes.addFlashAttribute("sucesso", "Cliente atualizado com sucesso!");
         return "redirect:/clientes";
     }
 
     // Outras páginas
+    @GetMapping("/auditoria")
+    public String auditoria(Model model) {
+        model.addAttribute("auditorias", auditoriaService.listar());
+        model.addAttribute("content", "auditoria :: content");
+        return "layout";
+    }
+
     @GetMapping("/configuracoes")
     public String configuracoes(Model model) {
         model.addAttribute("content", "configuracoes :: content");
