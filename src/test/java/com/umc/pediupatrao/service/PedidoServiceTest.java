@@ -7,6 +7,7 @@ import com.umc.pediupatrao.repository.ClienteRepository;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import com.umc.pediupatrao.repository.ProdutoRepository;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -169,4 +170,94 @@ class PedidoServiceTest {
         verify(pedidoRepository, never()).save(any());
     }
 
+    @Test
+    void recalculaDescontoSemAcumularPercentuais() {
+        Pedido pedido = pedido(List.of(item("pizza", 2), item("bebida", 3)));
+        pedido.setId("pedido-1");
+        pedido.setStatus("PRONTO");
+        pedido.getItens().get(0).setPrecoUnitario(new BigDecimal("19.90"));
+        pedido.getItens().get(1).setPrecoUnitario(new BigDecimal("6.50"));
+        pedido.setValorTotal(new BigDecimal("59.30"));
+        when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.aplicarDesconto("pedido-1", new BigDecimal("20"));
+        assertThat(pedido.getValorTotal()).isEqualByComparingTo("47.44");
+        service.aplicarDesconto("pedido-1", new BigDecimal("10"));
+        assertThat(pedido.getValorTotal()).isEqualByComparingTo("53.37");
+        service.aplicarDesconto("pedido-1", BigDecimal.ZERO);
+        assertThat(pedido.getValorTotal()).isEqualByComparingTo("59.30");
+        assertThat(pedido.getStatus()).isEqualTo("PRONTO");
+        verify(pedidoRepository, times(3)).save(pedido);
+    }
+
+    @Test
+    void rejeitaDescontoNegativoAcimaDoLimiteOuAusente() {
+        Pedido pedido = new Pedido();
+        pedido.setStatus("RECEBIDO");
+        when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+        for (BigDecimal percentual : new BigDecimal[]{new BigDecimal("-1"), new BigDecimal("20.01"), null}) {
+            assertThatThrownBy(() -> service.aplicarDesconto("pedido-1", percentual))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("entre 0% e 20%");
+        }
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelaComJustificativaEPreservaPedido() {
+        Pedido pedido = pedido(List.of(item("pizza", 2)));
+        pedido.setId("pedido-1");
+        pedido.setStatus("EM_PREPARACAO");
+        pedido.setValorTotal(new BigDecimal("50.00"));
+        pedido.setResponsavelRegistro("atendente");
+        LocalDateTime entrada = LocalDateTime.of(2026, 10, 3, 18, 0);
+        pedido.setDataHoraEntrada(entrada);
+        List<ItemPedido> itens = pedido.getItens();
+        when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.cancelarPedido("pedido-1", "  Cliente desistiu  ");
+        assertThat(pedido.getStatus()).isEqualTo("CANCELADO");
+        assertThat(pedido.getJustificativaCancelamento()).isEqualTo("Cliente desistiu");
+        assertThat(pedido.getItens()).isSameAs(itens);
+        assertThat(pedido.getValorTotal()).isEqualByComparingTo("50.00");
+        assertThat(pedido.getDataHoraEntrada()).isEqualTo(entrada);
+        assertThat(pedido.getResponsavelRegistro()).isEqualTo("atendente");
+        assertThatThrownBy(() -> service.aplicarDesconto("pedido-1", BigDecimal.TEN))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.cancelarPedido("pedido-1", "Outra justificativa"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.atualizarStatus("pedido-1", "EM_PREPARACAO", "gerente"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(pedidoRepository).save(pedido);
+    }
+
+    @Test
+    void rejeitaCancelamentoSemJustificativa() {
+        Pedido pedido = new Pedido();
+        pedido.setStatus("PRONTO");
+        when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+        for (String justificativa : new String[]{null, "", "   "}) {
+            assertThatThrownBy(() -> service.cancelarPedido("pedido-1", justificativa))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("justificativa");
+        }
+        assertThat(pedido.getStatus()).isEqualTo("PRONTO");
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @Test
+    void bloqueiaDescontoECancelamentoAposSaidaOuEncerramento() {
+        for (String status : List.of("SAIU_PARA_ENTREGA", "RETIRADO", "FINALIZADO", "CANCELADO", "PRONTO")) {
+            Pedido pedido = new Pedido();
+            pedido.setStatus(status);
+            if ("PRONTO".equals(status)) pedido.setDataHoraSaida(LocalDateTime.now());
+            when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+            assertThatThrownBy(() -> service.aplicarDesconto("pedido-1", BigDecimal.TEN))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> service.cancelarPedido("pedido-1", "Cliente desistiu"))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThat(pedido.getStatus()).isEqualTo(status);
+        }
+        verify(pedidoRepository, never()).save(any());
+    }
 }

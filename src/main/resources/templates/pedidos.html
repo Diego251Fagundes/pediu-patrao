@@ -55,7 +55,8 @@
                     </tr>
                     <!-- Linhas -->
                     <tr th:each="pedido : ${pedidos}"
-                        th:with="proximos=${pedido.status != null ? transicoesPedido[pedido.status] : null}">
+                        th:with="proximos=${pedido.status != null ? transicoesPedido[pedido.status] : null},
+                                 antesDaSaida=${pedido.dataHoraSaida == null and pedido.status != null and statusAntesDaSaida.contains(pedido.status)}">
                         <td class="ps-4 text-muted" th:text="${pedido.id}"></td>
                         <td th:text="${pedido.clienteId}"></td>
                         <td>
@@ -70,7 +71,11 @@
                                 <span th:text="${pedido.quantidade}"></span>
                             </div>
                         </td>
-                        <td th:text="${pedido.valorTotal != null ? 'R$ ' + #numbers.formatDecimal(pedido.valorTotal, 1, 'POINT', 2, 'COMMA') : '—'}"></td>
+                        <td>
+                            <span th:text="${pedido.valorTotal != null ? 'R$ ' + #numbers.formatDecimal(pedido.valorTotal, 1, 'POINT', 2, 'COMMA') : '—'}"></span>
+                            <small class="d-block text-muted" th:if="${pedido.descontoPercentual != null and pedido.descontoPercentual > 0}"
+                                   th:text="${'Desconto: ' + #numbers.formatDecimal(pedido.descontoPercentual, 1, 'POINT', 2, 'COMMA') + '%'}"></small>
+                        </td>
                         <td th:text="${pedido.responsavelRegistro ?: '—'}"></td>
                         <td th:text="${pedido.dataHoraEntrada != null ? #temporals.format(pedido.dataHoraEntrada, 'dd/MM/yyyy HH:mm') : '—'}"></td>
                         <td>
@@ -85,6 +90,8 @@
                                                   (${pedido.status == 'EM_PREPARACAO'} ? 'bg-warning text-dark' : 'bg-secondary'))"
                                   th:text="${#strings.replace(pedido.status, '_', ' ')}">
                             </span>
+                            <small class="d-block text-muted mt-1" th:if="${pedido.justificativaCancelamento}"
+                                   th:text="${pedido.justificativaCancelamento}"></small>
                         </td>
                         <td th:if="${podeGerenciarPedidos}">
                             <form th:if="${proximos != null and !#lists.isEmpty(proximos)}"
@@ -96,6 +103,30 @@
                                 </select>
                                 <button type="submit" class="btn btn-primary btn-sm">Atualizar</button>
                             </form>
+                            <div th:if="${antesDaSaida}" class="mt-2">
+                                <details class="mb-2">
+                                    <summary class="text-primary">Aplicar desconto</summary>
+                                    <form th:action="@{/pedidos/{id}/desconto(id=${pedido.id})}" method="post" class="mt-2">
+                                        <label class="form-label small">
+                                            Desconto (%)
+                                            <input type="number" name="percentual" class="form-control form-control-sm"
+                                                   min="0" max="20" step="0.01" required
+                                                   th:value="${pedido.descontoPercentual ?: 0}">
+                                        </label>
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">Aplicar</button>
+                                    </form>
+                                </details>
+                                <details>
+                                    <summary class="text-danger">Cancelar pedido</summary>
+                                    <form th:action="@{/pedidos/{id}/cancelar(id=${pedido.id})}" method="post" class="mt-2">
+                                        <label class="form-label small">
+                                            Justificativa do cancelamento
+                                            <textarea name="justificativa" class="form-control form-control-sm" rows="2" required></textarea>
+                                        </label>
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">Cancelar pedido</button>
+                                    </form>
+                                </details>
+                            </div>
                         </td>
                     </tr>
                 </tbody>

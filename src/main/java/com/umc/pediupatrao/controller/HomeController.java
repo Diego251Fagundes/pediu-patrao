@@ -12,6 +12,7 @@ import com.umc.pediupatrao.service.PedidoService;
 import com.umc.pediupatrao.service.ProdutoService;
 import com.umc.pediupatrao.service.UsuarioService;
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,6 +145,7 @@ public class HomeController {
         List<Pedido> pedidos = pedidoService.listarPedidos();
         model.addAttribute("pedidos", pedidos);
         model.addAttribute("transicoesPedido", pedidoService.getTransicoesPermitidas());
+        model.addAttribute("statusAntesDaSaida", pedidoService.getStatusAntesDaSaida());
         model.addAttribute("content", "pedidos :: content");
         log.info("Carregando fragmento: pedidos :: content");
         return "layout";
@@ -155,6 +157,30 @@ public class HomeController {
         try {
             pedidoService.atualizarStatus(id, status, authentication.getName());
             redirectAttributes.addFlashAttribute("sucesso", "Status do pedido atualizado com sucesso!");
+        } catch (IllegalArgumentException exception) {
+            redirectAttributes.addFlashAttribute("erro", exception.getMessage());
+        }
+        return "redirect:/pedidos";
+    }
+
+    @PostMapping("/pedidos/{id}/cancelar")
+    public String cancelarPedido(@PathVariable String id, @RequestParam String justificativa,
+            RedirectAttributes redirectAttributes) {
+        try {
+            pedidoService.cancelarPedido(id, justificativa);
+            redirectAttributes.addFlashAttribute("sucesso", "Pedido cancelado com sucesso!");
+        } catch (IllegalArgumentException exception) {
+            redirectAttributes.addFlashAttribute("erro", exception.getMessage());
+        }
+        return "redirect:/pedidos";
+    }
+
+    @PostMapping("/pedidos/{id}/desconto")
+    public String aplicarDescontoPedido(@PathVariable String id, @RequestParam BigDecimal percentual,
+            RedirectAttributes redirectAttributes) {
+        try {
+            pedidoService.aplicarDesconto(id, percentual);
+            redirectAttributes.addFlashAttribute("sucesso", "Desconto aplicado com sucesso!");
         } catch (IllegalArgumentException exception) {
             redirectAttributes.addFlashAttribute("erro", exception.getMessage());
         }

@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import com.umc.pediupatrao.entity.ItemPedido;
 import com.umc.pediupatrao.entity.Produto;
 import com.umc.pediupatrao.repository.ClienteRepository;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 
 @Service
 public class PedidoService {
+
+    private static final Set<String> STATUS_ANTES_DA_SAIDA = Set.of("RECEBIDO", "EM_PREPARACAO", "PRONTO");
 
     private static final Map<String, List<String>> TRANSICOES = Map.of(
             "RECEBIDO", List.of("EM_PREPARACAO"),
@@ -81,6 +84,7 @@ public class PedidoService {
         pedido.setDataHoraEntrada(LocalDateTime.now());
         pedido.setDataHoraSaida(null);
         pedido.setResponsavelSaida(null);
+        pedido.setJustificativaCancelamento(null);
         pedido.setStatus("RECEBIDO");
         return pedidoRepository.save(pedido);
     }
@@ -91,6 +95,52 @@ public class PedidoService {
 
     public Map<String, List<String>> getTransicoesPermitidas() {
         return TRANSICOES;
+    }
+
+    public Set<String> getStatusAntesDaSaida() {
+        return STATUS_ANTES_DA_SAIDA;
+    }
+
+    private Pedido buscarPedidoAntesDaSaida(String id) {
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado."));
+        if (pedido.getDataHoraSaida() != null || pedido.getStatus() == null
+                || !STATUS_ANTES_DA_SAIDA.contains(pedido.getStatus())) {
+            throw new IllegalArgumentException("Esta operação só é permitida antes da saída de um pedido não cancelado.");
+        }
+        return pedido;
+    }
+
+    public Pedido cancelarPedido(String id, String justificativa) {
+        Pedido pedido = buscarPedidoAntesDaSaida(id);
+        if (justificativa == null || justificativa.isBlank()) {
+            throw new IllegalArgumentException("Informe a justificativa do cancelamento.");
+        }
+        pedido.setStatus("CANCELADO");
+        pedido.setJustificativaCancelamento(justificativa.trim());
+        return pedidoRepository.save(pedido);
+    }
+
+    public Pedido aplicarDesconto(String id, BigDecimal percentual) {
+        Pedido pedido = buscarPedidoAntesDaSaida(id);
+        if (percentual == null || percentual.signum() < 0 || percentual.compareTo(new BigDecimal("20")) > 0) {
+            throw new IllegalArgumentException("O desconto deve estar entre 0% e 20%.");
+        }
+        if (pedido.getItens() == null || pedido.getItens().isEmpty()) {
+            throw new IllegalArgumentException("O pedido deve ter itens com preços registrados para aplicar desconto.");
+        }
+        BigDecimal subtotal = BigDecimal.ZERO;
+        for (ItemPedido item : pedido.getItens()) {
+            if (item == null || item.getPrecoUnitario() == null || item.getPrecoUnitario().signum() < 0
+                    || item.getQuantidade() <= 0) {
+                throw new IllegalArgumentException("O pedido possui um item com preço ou quantidade inválidos.");
+            }
+            subtotal = subtotal.add(item.getPrecoUnitario().multiply(BigDecimal.valueOf(item.getQuantidade())));
+        }
+        pedido.setDescontoPercentual(percentual);
+        pedido.setValorTotal(subtotal.multiply(BigDecimal.ONE.subtract(percentual.movePointLeft(2)))
+                .setScale(2, RoundingMode.HALF_UP));
+        return pedidoRepository.save(pedido);
     }
 
     public Pedido atualizarStatus(String id, String status, String responsavel) {

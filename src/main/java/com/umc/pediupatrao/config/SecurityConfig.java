@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/pedidos", "/pedidos/salvar").hasAnyRole("GERENTE", "ATENDENTE")
                         .requestMatchers(HttpMethod.PUT, "/api/pedidos/*/status").hasRole("GERENTE")
                         .requestMatchers(HttpMethod.POST, "/pedidos/*/status").hasRole("GERENTE")
+                        .requestMatchers(HttpMethod.POST, "/api/pedidos/*/cancelar", "/pedidos/*/cancelar", "/pedidos/*/desconto").hasRole("GERENTE")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/*/desconto").hasRole("GERENTE")
                         .requestMatchers("/pedidos/**", "/api/pedidos", "/api/pedidos/**").denyAll()
                         .anyRequest().authenticated()
                 )

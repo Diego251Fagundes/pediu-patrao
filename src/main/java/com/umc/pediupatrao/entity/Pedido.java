@@ -29,6 +29,7 @@ public class Pedido {
     private LocalDateTime dataHoraEntrada;
     private LocalDateTime dataHoraSaida;
     private String responsavelSaida;
+    private String justificativaCancelamento;
 
     public String getId() {
         return id;
@@ -134,7 +135,13 @@ public class Pedido {
         this.responsavelSaida = responsavelSaida;
     }
 
+    public String getJustificativaCancelamento() {
+        return justificativaCancelamento;
+    }
 
+    public void setJustificativaCancelamento(String justificativaCancelamento) {
+        this.justificativaCancelamento = justificativaCancelamento;
+    }
     
     
 }

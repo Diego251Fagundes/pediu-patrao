@@ -9,6 +9,8 @@ import com.umc.pediupatrao.entity.Produto;
 import com.umc.pediupatrao.repository.ClienteRepository;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import com.umc.pediupatrao.repository.ProdutoRepository;
+import com.umc.pediupatrao.entity.ItemPedido;
+import java.math.BigDecimal;
 import java.util.List;
 import java.time.LocalDateTime;
 import com.umc.pediupatrao.service.*;
@@ -135,6 +137,14 @@ class ClientesPedidosSecurityTest {
                 .with(user("usuario").roles(perfil)).with(csrf()))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/pedidos/pedido-1/status").param("status", "EM_PREPARACAO")
+                .with(user("usuario").roles(perfil)).with(csrf()))
+                .andExpect(status().isForbidden());
+        for (String rota : new String[]{"/pedidos/pedido-1/cancelar", "/pedidos/pedido-1/desconto", "/api/pedidos/pedido-1/cancelar"}) {
+            mvc.perform(post(rota).param("justificativa", "Cliente desistiu").param("percentual", "10")
+                    .with(user("usuario").roles(perfil)).with(csrf()))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(put("/api/pedidos/pedido-1/desconto").param("percentual", "10")
                 .with(user("usuario").roles(perfil)).with(csrf()))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(pedidoRepository);
@@ -277,10 +287,18 @@ class ClientesPedidosSecurityTest {
         mvc.perform(put("/api/pedidos/pedido-1/status").with(user("gerente").roles("GERENTE"))
                 .param("status", "EM_PREPARACAO"))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/clientes/salvar").with(user("atendente").roles("ATENDENTE")))
-                .andExpect(status().isForbidden());
         mvc.perform(post("/pedidos/pedido-1/status").with(user("gerente").roles("GERENTE"))
                 .param("status", "EM_PREPARACAO"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/clientes/salvar").with(user("atendente").roles("ATENDENTE")))
+                .andExpect(status().isForbidden());
+        for (String rota : new String[]{"/pedidos/pedido-1/cancelar", "/pedidos/pedido-1/desconto", "/api/pedidos/pedido-1/cancelar"}) {
+            mvc.perform(post(rota).param("justificativa", "Cliente desistiu").param("percentual", "10")
+                    .with(user("gerente").roles("GERENTE")))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(put("/api/pedidos/pedido-1/desconto").param("percentual", "10")
+                .with(user("gerente").roles("GERENTE")))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(clienteService, pedidoRepository);
     }
@@ -313,5 +331,53 @@ class ClientesPedidosSecurityTest {
         mvc.perform(post("/api/pedidos/pedido-1/status").with(user("gerente").roles("GERENTE")).with(csrf()))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(clienteService, pedidoRepository);
+    }
+    @Test
+    void gerenteAplicaDescontoECancelaPelaApiEPeloFormulario() throws Exception {
+        for (String id : List.of("pedido-api", "pedido-form")) {
+            Pedido pedido = new Pedido();
+            pedido.setId(id);
+            pedido.setStatus("RECEBIDO");
+            ItemPedido item = new ItemPedido();
+            item.setNomeProduto("Pizza");
+            item.setQuantidade(2);
+            item.setPrecoUnitario(new BigDecimal("25.00"));
+            pedido.setItens(List.of(item));
+            pedido.setValorTotal(new BigDecimal("50.00"));
+            when(pedidoRepository.findById(id)).thenReturn(Optional.of(pedido));
+        }
+        when(pedidoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        List<Pedido> pedidos = List.of(
+                pedidoRepository.findById("pedido-api").orElseThrow(),
+                pedidoRepository.findById("pedido-form").orElseThrow());
+        when(pedidoRepository.findAll()).thenReturn(pedidos);
+        var gerente = user("gerente").roles("GERENTE");
+        mvc.perform(get("/pedidos").with(gerente)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/pedidos/pedido-form/desconto\"")))
+                .andExpect(content().string(containsString("action=\"/pedidos/pedido-form/cancelar\"")));
+        mvc.perform(put("/api/pedidos/pedido-api/desconto").with(gerente).with(csrf())
+                .param("percentual", "20").param("valorTotal", "0.01").param("usuario", "falso"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.valorTotal").value(40.0));
+        mvc.perform(post("/pedidos/pedido-form/desconto").with(gerente).with(csrf()).param("percentual", "10"))
+                .andExpect(redirectedUrl("/pedidos")).andExpect(flash().attributeExists("sucesso"));
+        mvc.perform(put("/api/pedidos/pedido-api/desconto").with(gerente).with(csrf()).param("percentual", "20.01"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/pedidos/pedido-api/cancelar").with(gerente).with(csrf()).param("justificativa", "   "))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/pedidos/pedido-form/cancelar").with(gerente).with(csrf()).param("justificativa", "   "))
+                .andExpect(redirectedUrl("/pedidos")).andExpect(flash().attributeExists("erro"));
+        mvc.perform(post("/api/pedidos/pedido-api/cancelar").with(gerente).with(csrf())
+                .param("justificativa", "Cliente desistiu"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELADO"))
+                .andExpect(jsonPath("$.valorTotal").value(40.0));
+        mvc.perform(post("/pedidos/pedido-form/cancelar").with(gerente).with(csrf())
+                .param("justificativa", "Pedido duplicado"))
+                .andExpect(redirectedUrl("/pedidos")).andExpect(flash().attributeExists("sucesso"));
+        mvc.perform(get("/pedidos").with(gerente)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("R$ 45,00")))
+                .andExpect(content().string(containsString("Pedido duplicado")))
+                .andExpect(content().string(not(containsString("name=\"percentual\""))))
+                .andExpect(content().string(not(containsString("name=\"justificativa\""))));
+        verify(pedidoRepository, times(4)).save(any());
     }
 }
