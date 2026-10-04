@@ -25,6 +25,13 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <form th:action="@{/logout}" method="post">
+                            <button type="submit" class="nav-link w-100 text-start border-0 bg-transparent">
+                                <i class="bi bi-box-arrow-right"></i><span class="d-none d-md-inline">&nbsp;Sair</span>
+                            </button>
+                        </form>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="#" onclick="toggleSubmenu(event, this)">
                             <i class="bi bi-gear"></i><span class="d-none d-md-inline">&nbsp;Configurações</span>
                             <span class="float-end">&#9662;</span> <!-- Setinha -->

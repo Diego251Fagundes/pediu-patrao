@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/usuarios")
@@ -18,45 +19,35 @@ public class UsuarioController {
         this.usuarioService = usuarioService;
     }
 
-    // Endpoint para listar todos os usuários
     @GetMapping
     public ResponseEntity<Iterable<Usuario>> listarTodos() {
         Iterable<Usuario> usuarios = usuarioService.listarTodos();
         return ResponseEntity.ok(usuarios);
     }
 
-    // Endpoint para buscar um usuário por ID
     @GetMapping("/{id}")
     public ResponseEntity<Usuario> buscarPorId(@PathVariable String id) {
         Optional<Usuario> usuario = usuarioService.buscarPorId(id);
         return usuario.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
-    // Endpoint para criar um novo usuário
     @PostMapping
     public ResponseEntity<Usuario> criarUsuario(@RequestBody Usuario usuario) {
-        usuarioService.salvarUsuario(usuario);
-        return ResponseEntity.status(HttpStatus.CREATED).body(usuario);
+        Usuario salvo = usuarioService.salvarUsuario(usuario);
+        return ResponseEntity.status(HttpStatus.CREATED).body(salvo);
     }
 
-    // Endpoint para atualizar um usuário
     @PutMapping("/{id}")
     public ResponseEntity<Usuario> atualizarUsuario(@PathVariable String id, @RequestBody Usuario usuarioAtualizado) {
         Optional<Usuario> usuarioExistente = usuarioService.buscarPorId(id);
 
         if (usuarioExistente.isPresent()) {
-            Usuario usuario = usuarioExistente.get();
-            usuario.setUsername(usuarioAtualizado.getUsername());
-            usuario.setPassword(usuarioAtualizado.getPassword());
-            usuarioService.salvarUsuario(usuario);
-
-            return ResponseEntity.ok(usuario);
+            return ResponseEntity.ok(usuarioService.atualizarUsuario(id, usuarioAtualizado));
         } else {
             return ResponseEntity.notFound().build();
         }
     }
 
-    // Endpoint para deletar um usuário
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarUsuario(@PathVariable String id) {
         Optional<Usuario> usuarioExistente = usuarioService.buscarPorId(id);
@@ -67,5 +58,10 @@ public class UsuarioController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> tratarDadosInvalidos(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(Map.of("erro", exception.getMessage()));
     }
 }

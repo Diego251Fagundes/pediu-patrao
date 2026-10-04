@@ -48,9 +48,7 @@ public class HomeController {
         return "layout";
     }
 
-    // ========================
-    // USUÁRIOS
-    // ========================
+    // Usuários
     @GetMapping("/usuarios")
     public String listarUsuarios(Model model) {
         List<Usuario> usuarios = (List<Usuario>) usuarioService.listarTodos();
@@ -86,8 +84,16 @@ public class HomeController {
 
     @PostMapping("/usuarios/salvar")
     public String salvarUsuario(@ModelAttribute Usuario usuario,
+            Model model,
             RedirectAttributes redirectAttributes) {
-        usuarioService.salvarUsuario(usuario);
+        try {
+            usuarioService.salvarUsuario(usuario);
+        } catch (IllegalArgumentException exception) {
+            model.addAttribute("usuario", usuario);
+            model.addAttribute("erro", exception.getMessage());
+            model.addAttribute("content", "usuarios/form :: content");
+            return "layout";
+        }
         redirectAttributes.addFlashAttribute("sucesso", "Usuário criado com sucesso!");
         return "redirect:/usuarios";
     }
@@ -95,8 +101,17 @@ public class HomeController {
     @PostMapping("/usuarios/editar/{id}")
     public String atualizarUsuario(@PathVariable String id,
             @ModelAttribute Usuario usuario,
+            Model model,
             RedirectAttributes redirectAttributes) {
-        usuarioService.atualizarUsuario(id, usuario);
+        try {
+            usuarioService.atualizarUsuario(id, usuario);
+        } catch (IllegalArgumentException exception) {
+            usuario.setId(id);
+            model.addAttribute("usuario", usuario);
+            model.addAttribute("erro", exception.getMessage());
+            model.addAttribute("content", "usuarios/form :: content");
+            return "layout";
+        }
         redirectAttributes.addFlashAttribute("sucesso", "Usuário atualizado com sucesso!");
         return "redirect:/usuarios";
     }
@@ -109,9 +124,7 @@ public class HomeController {
         return "redirect:/usuarios";
     }
 
-    // ========================
-    // PEDIDOS
-    // ========================
+    // Pedidos
     @GetMapping("/pedidos")
     public String pedidos(Model model) {
         List<Pedido> pedidos = pedidoService.listarPedidos();
@@ -121,9 +134,7 @@ public class HomeController {
         return "layout";
     }
 
-    // ========================
-    // PRODUTOS
-    // ========================
+    // Produtos
     @GetMapping("/produtos")
     public String produtos(Model model) {
         List<Produto> produtos = produtoService.listarProdutos();
@@ -133,9 +144,7 @@ public class HomeController {
         return "layout";
     }
 
-    // ========================
-    // CLIENTES
-    // ========================
+    // Clientes
     @GetMapping("/clientes")
     public String clientes(Model model) {
         List<Cliente> clientes = clienteService.listarClientes();
@@ -187,9 +196,7 @@ public class HomeController {
         return "redirect:/clientes";
     }
 
-    // ========================
-    // OUTRAS ROTAS
-    // ========================
+    // Outras páginas
     @GetMapping("/configuracoes")
     public String configuracoes(Model model) {
         model.addAttribute("content", "configuracoes :: content");

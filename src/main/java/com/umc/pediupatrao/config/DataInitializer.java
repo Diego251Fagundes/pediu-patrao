@@ -21,10 +21,22 @@ public class DataInitializer {
                 Usuario user = new Usuario();
                 user.setUsername("admin");
                 user.setPassword(encoder.encode("teste123"));
+                user.setRole("ADMIN");
 
                 repo.save(user);
 
                 System.out.println("Usuário admin criado!");
+            }
+
+            // Atualiza perfis antigos sem alterar as senhas.
+            for (Usuario usuario : repo.findAll()) {
+                if (usuario.getRole() == null || usuario.getRole().isBlank()) {
+                    usuario.setRole("admin".equals(usuario.getUsername()) ? "ADMIN" : "ATENDENTE");
+                    repo.save(usuario);
+                } else if ("USER".equals(usuario.getRole())) {
+                    usuario.setRole("ATENDENTE");
+                    repo.save(usuario);
+                }
             }
         };
     }
