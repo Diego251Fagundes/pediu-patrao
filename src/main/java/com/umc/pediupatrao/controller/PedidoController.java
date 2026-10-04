@@ -27,8 +27,9 @@ public class PedidoController {
     }
 
     @PutMapping("/{id}/status")
-    public Pedido atualizarStatus(@PathVariable String id, @RequestParam String status) {
-        return pedidoService.atualizarStatus(id, status);
+    public Pedido atualizarStatus(@PathVariable String id, @RequestParam String status,
+            Authentication authentication) {
+        return pedidoService.atualizarStatus(id, status, authentication.getName());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

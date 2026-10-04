@@ -10,6 +10,7 @@ import com.umc.pediupatrao.repository.ClienteRepository;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import com.umc.pediupatrao.repository.ProdutoRepository;
 import java.util.List;
+import java.time.LocalDateTime;
 import com.umc.pediupatrao.service.*;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -47,9 +48,17 @@ class ClientesPedidosSecurityTest {
     @ParameterizedTest
     @ValueSource(strings = {"ADMIN", "GERENTE", "ATENDENTE"})
     void perfisConsultamClientesEPedidos(String perfil) throws Exception {
+        Pedido pedido = new Pedido();
+        pedido.setId("pedido-1");
+        pedido.setStatus("RECEBIDO");
+        when(pedidoRepository.findAll()).thenReturn(List.of(pedido));
         for (String rota : new String[]{"/clientes", "/api/clientes", "/pedidos", "/api/pedidos"}) {
-            mvc.perform(get(rota).with(user("usuario").roles(perfil)))
+            var resultado = mvc.perform(get(rota).with(user("usuario").roles(perfil)))
                     .andExpect(status().isOk());
+            if ("/pedidos".equals(rota)) {
+                resultado.andExpect(content().string("GERENTE".equals(perfil)
+                        ? containsString("name=\"status\"") : not(containsString("name=\"status\""))));
+            }
         }
     }
 
@@ -125,6 +134,9 @@ class ClientesPedidosSecurityTest {
         mvc.perform(put("/api/pedidos/pedido-1/status").param("status", "CANCELADO")
                 .with(user("usuario").roles(perfil)).with(csrf()))
                 .andExpect(status().isForbidden());
+        mvc.perform(post("/pedidos/pedido-1/status").param("status", "EM_PREPARACAO")
+                .with(user("usuario").roles(perfil)).with(csrf()))
+                .andExpect(status().isForbidden());
         verifyNoInteractions(pedidoRepository);
     }
 
@@ -134,12 +146,42 @@ class ClientesPedidosSecurityTest {
         pedido.setId("pedido-1");
         pedido.setStatus("RECEBIDO");
         when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findAll()).thenReturn(List.of(pedido));
         when(pedidoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        mvc.perform(put("/api/pedidos/pedido-1/status").param("status", "FINALIZADO")
+                .with(user("gerente").roles("GERENTE")).with(csrf()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.erro").exists());
+        mvc.perform(post("/pedidos/pedido-1/status").param("status", "FINALIZADO")
+                .with(user("gerente").roles("GERENTE")).with(csrf()))
+                .andExpect(redirectedUrl("/pedidos")).andExpect(flash().attributeExists("erro"));
         mvc.perform(put("/api/pedidos/pedido-1/status").param("status", "EM_PREPARACAO")
                 .with(user("gerente").roles("GERENTE")).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_PREPARACAO"));
-        verify(pedidoRepository).save(pedido);
+        mvc.perform(post("/pedidos/pedido-1/status").param("status", "PRONTO")
+                .with(user("gerente").roles("GERENTE")).with(csrf()))
+                .andExpect(redirectedUrl("/pedidos")).andExpect(flash().attributeExists("sucesso"));
+        mvc.perform(get("/pedidos").with(user("gerente").roles("GERENTE")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"SAIU_PARA_ENTREGA\"")))
+                .andExpect(content().string(containsString("value=\"RETIRADO\"")))
+                .andExpect(content().string(not(containsString("value=\"FINALIZADO\""))));
+        mvc.perform(post("/pedidos/pedido-1/status").param("status", "SAIU_PARA_ENTREGA")
+                .param("responsavelSaida", "falso").param("dataHoraSaida", "2000-01-01T00:00:00")
+                .with(user("gerente").roles("GERENTE")).with(csrf()))
+                .andExpect(redirectedUrl("/pedidos")).andExpect(flash().attributeExists("sucesso"));
+        LocalDateTime saida = pedido.getDataHoraSaida();
+        mvc.perform(put("/api/pedidos/pedido-1/status").param("status", "FINALIZADO")
+                .with(user("gerente").roles("GERENTE")).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responsavelSaida").value("gerente"))
+                .andExpect(jsonPath("$.dataHoraSaida").exists());
+        mvc.perform(get("/pedidos").with(user("gerente").roles("GERENTE")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("gerente")))
+                .andExpect(content().string(not(containsString("name=\"status\""))));
+        org.junit.jupiter.api.Assertions.assertEquals(saida, pedido.getDataHoraSaida());
+        verify(pedidoRepository, times(4)).save(pedido);
     }
 
 
@@ -178,6 +220,7 @@ class ClientesPedidosSecurityTest {
                 .content("""
                         {"clienteId":"cliente-1","responsavelRegistro":"falso","valorTotal":0.01,
                          "descontoPercentual":20,"dataHoraEntrada":"2000-01-01T00:00:00",
+                         "dataHoraSaida":"2000-01-01T00:00:00","responsavelSaida":"falso",
                          "itens":[{"produtoId":"produto-1","quantidade":2,"precoUnitario":0.01}]}
                         """))
                 .andExpect(status().isOk())
@@ -186,6 +229,8 @@ class ClientesPedidosSecurityTest {
                 .andExpect(jsonPath("$.descontoPercentual").value(0))
                 .andExpect(jsonPath("$.responsavelRegistro").value("usuario"))
                 .andExpect(jsonPath("$.dataHoraEntrada").value(not("2000-01-01T00:00:00")))
+                .andExpect(jsonPath("$.dataHoraSaida").doesNotExist())
+                .andExpect(jsonPath("$.responsavelSaida").doesNotExist())
                 .andExpect(jsonPath("$.itens[0].precoUnitario").value(25.0));
         mvc.perform(post("/pedidos/salvar").with(user("usuario").roles(perfil)).with(csrf())
                 .param("clienteId", "cliente-1").param("itens[0].produtoId", "produto-1")
@@ -233,6 +278,9 @@ class ClientesPedidosSecurityTest {
                 .param("status", "EM_PREPARACAO"))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/clientes/salvar").with(user("atendente").roles("ATENDENTE")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/pedidos/pedido-1/status").with(user("gerente").roles("GERENTE"))
+                .param("status", "EM_PREPARACAO"))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(clienteService, pedidoRepository);
     }

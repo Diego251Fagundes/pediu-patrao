@@ -27,6 +27,8 @@ public class Pedido {
     private BigDecimal valorTotal;
     private String responsavelRegistro;
     private LocalDateTime dataHoraEntrada;
+    private LocalDateTime dataHoraSaida;
+    private String responsavelSaida;
 
     public String getId() {
         return id;
@@ -116,9 +118,21 @@ public class Pedido {
         this.dataHoraEntrada = dataHoraEntrada;
     }
 
+    public LocalDateTime getDataHoraSaida() {
+        return dataHoraSaida;
+    }
 
+    public void setDataHoraSaida(LocalDateTime dataHoraSaida) {
+        this.dataHoraSaida = dataHoraSaida;
+    }
 
+    public String getResponsavelSaida() {
+        return responsavelSaida;
+    }
 
+    public void setResponsavelSaida(String responsavelSaida) {
+        this.responsavelSaida = responsavelSaida;
+    }
 
 
     

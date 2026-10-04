@@ -40,19 +40,22 @@
                         <th>Valor total</th>
                         <th>Registrado por</th>
                         <th>Entrada</th>
+                        <th>Saída</th>
                         <th>Status</th>
+                        <th th:if="${podeGerenciarPedidos}">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     <!-- Lista vazia -->
                     <tr th:if="${#lists.isEmpty(pedidos)}">
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td th:colspan="${podeGerenciarPedidos ? 9 : 8}" class="text-center text-muted py-5">
                             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                             Nenhum pedido encontrado.
                         </td>
                     </tr>
                     <!-- Linhas -->
-                    <tr th:each="pedido : ${pedidos}">
+                    <tr th:each="pedido : ${pedidos}"
+                        th:with="proximos=${pedido.status != null ? transicoesPedido[pedido.status] : null}">
                         <td class="ps-4 text-muted" th:text="${pedido.id}"></td>
                         <td th:text="${pedido.clienteId}"></td>
                         <td>
@@ -71,12 +74,28 @@
                         <td th:text="${pedido.responsavelRegistro ?: '—'}"></td>
                         <td th:text="${pedido.dataHoraEntrada != null ? #temporals.format(pedido.dataHoraEntrada, 'dd/MM/yyyy HH:mm') : '—'}"></td>
                         <td>
+                            <span th:text="${pedido.dataHoraSaida != null ? #temporals.format(pedido.dataHoraSaida, 'dd/MM/yyyy HH:mm') : '—'}"></span>
+                            <small class="d-block text-muted" th:if="${pedido.responsavelSaida}"
+                                   th:text="${pedido.responsavelSaida}"></small>
+                        </td>
+                        <td>
                             <span class="badge"
-                                  th:classappend="${pedido.status == 'ENTREGUE'} ? 'bg-success' :
+                                  th:classappend="${pedido.status == 'FINALIZADO'} ? 'bg-success' :
                                                   (${pedido.status == 'CANCELADO'} ? 'bg-danger' :
-                                                  (${pedido.status == 'EM_PREPARO'} ? 'bg-warning text-dark' : 'bg-secondary'))"
-                                  th:text="${pedido.status}">
+                                                  (${pedido.status == 'EM_PREPARACAO'} ? 'bg-warning text-dark' : 'bg-secondary'))"
+                                  th:text="${#strings.replace(pedido.status, '_', ' ')}">
                             </span>
+                        </td>
+                        <td th:if="${podeGerenciarPedidos}">
+                            <form th:if="${proximos != null and !#lists.isEmpty(proximos)}"
+                                  th:action="@{/pedidos/{id}/status(id=${pedido.id})}" method="post"
+                                  class="d-flex gap-2">
+                                <select name="status" class="form-select form-select-sm" aria-label="Próximo status" required>
+                                    <option th:each="proximo : ${proximos}" th:value="${proximo}"
+                                            th:text="${#strings.replace(proximo, '_', ' ')}"></option>
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm">Atualizar</button>
+                            </form>
                         </td>
                     </tr>
                 </tbody>

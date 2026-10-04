@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
@@ -47,6 +48,7 @@ public class HomeController {
         model.addAttribute("podeEditarClientes", request.isUserInRole("ATENDENTE"));
         model.addAttribute("podeExcluirClientes", request.isUserInRole("ADMIN"));
         model.addAttribute("podeRegistrarPedidos", request.isUserInRole("GERENTE") || request.isUserInRole("ATENDENTE"));
+        model.addAttribute("podeGerenciarPedidos", request.isUserInRole("GERENTE"));
     }
 
     @GetMapping("/login")
@@ -141,9 +143,22 @@ public class HomeController {
     public String pedidos(Model model) {
         List<Pedido> pedidos = pedidoService.listarPedidos();
         model.addAttribute("pedidos", pedidos);
+        model.addAttribute("transicoesPedido", pedidoService.getTransicoesPermitidas());
         model.addAttribute("content", "pedidos :: content");
         log.info("Carregando fragmento: pedidos :: content");
         return "layout";
+    }
+
+    @PostMapping("/pedidos/{id}/status")
+    public String atualizarStatusPedido(@PathVariable String id, @RequestParam String status,
+            Authentication authentication, RedirectAttributes redirectAttributes) {
+        try {
+            pedidoService.atualizarStatus(id, status, authentication.getName());
+            redirectAttributes.addFlashAttribute("sucesso", "Status do pedido atualizado com sucesso!");
+        } catch (IllegalArgumentException exception) {
+            redirectAttributes.addFlashAttribute("erro", exception.getMessage());
+        }
+        return "redirect:/pedidos";
     }
 
     @GetMapping("/pedidos/novo")

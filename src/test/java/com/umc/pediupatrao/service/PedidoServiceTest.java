@@ -6,6 +6,7 @@ import com.umc.pediupatrao.entity.Produto;
 import com.umc.pediupatrao.repository.ClienteRepository;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import com.umc.pediupatrao.repository.ProdutoRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -100,6 +101,71 @@ class PedidoServiceTest {
         when(produtoRepository.findById("pizza")).thenReturn(Optional.of(produto("pizza", -1)));
         assertThatThrownBy(() -> service.criarPedido(pedido(List.of(item("pizza", 1))), "atendente"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("preço válido");
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @Test
+    void percorreFluxoDeEntregaERetiradaPreservandoEntradaESaida() {
+        when(pedidoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        LocalDateTime entrada = LocalDateTime.of(2026, 10, 3, 18, 0);
+        for (String saida : List.of("SAIU_PARA_ENTREGA", "RETIRADO")) {
+            Pedido pedido = new Pedido();
+            pedido.setId("pedido-1");
+            pedido.setStatus("RECEBIDO");
+            pedido.setDataHoraEntrada(entrada);
+            pedido.setResponsavelRegistro("atendente");
+            when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+
+            service.atualizarStatus("pedido-1", "EM_PREPARACAO", "gerente");
+            service.atualizarStatus("pedido-1", "PRONTO", "gerente");
+            assertThat(pedido.getDataHoraSaida()).isNull();
+            assertThat(pedido.getResponsavelSaida()).isNull();
+
+            service.atualizarStatus("pedido-1", saida, "gerente");
+            LocalDateTime horarioSaida = pedido.getDataHoraSaida();
+            assertThat(horarioSaida).isNotNull();
+            assertThat(pedido.getResponsavelSaida()).isEqualTo("gerente");
+
+            service.atualizarStatus("pedido-1", "FINALIZADO", "outro-gerente");
+            assertThat(pedido.getStatus()).isEqualTo("FINALIZADO");
+            assertThat(pedido.getDataHoraEntrada()).isEqualTo(entrada);
+            assertThat(pedido.getResponsavelRegistro()).isEqualTo("atendente");
+            assertThat(pedido.getDataHoraSaida()).isEqualTo(horarioSaida);
+            assertThat(pedido.getResponsavelSaida()).isEqualTo("gerente");
+        }
+        verify(pedidoRepository, times(8)).save(any());
+    }
+
+    @Test
+    void rejeitaSaltosRetornosEstadosInvalidosECancelamentoPelaTrocaDeStatus() {
+        String[][] transicoesInvalidas = {
+                {"RECEBIDO", "RECEBIDO"},
+                {"EM_PREPARACAO", "FINALIZADO"},
+                {"PRONTO", "RECEBIDO"},
+                {"PRONTO", "CANCELADO"},
+                {"CANCELADO", "EM_PREPARACAO"},
+                {"FINALIZADO", "RETIRADO"},
+                {"SAIU_PARA_ENTREGA", "RETIRADO"},
+                {"RECEBIDO", "INEXISTENTE"},
+                {"RECEBIDO", null},
+                {null, "EM_PREPARACAO"}
+        };
+        for (String[] transicao : transicoesInvalidas) {
+            Pedido pedido = new Pedido();
+            pedido.setStatus(transicao[0]);
+            when(pedidoRepository.findById("pedido-1")).thenReturn(Optional.of(pedido));
+            assertThatThrownBy(() -> service.atualizarStatus("pedido-1", transicao[1], "gerente"))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThat(pedido.getStatus()).isEqualTo(transicao[0]);
+            assertThat(pedido.getDataHoraSaida()).isNull();
+        }
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @Test
+    void rejeitaAtualizacaoDePedidoInexistente() {
+        assertThatThrownBy(() -> service.atualizarStatus("inexistente", "EM_PREPARACAO", "gerente"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Pedido não encontrado.");
         verify(pedidoRepository, never()).save(any());
     }
 
