@@ -11,6 +11,9 @@
         <h2 class="fw-bold mb-0">
             <i class="bi bi-bag me-2 text-primary"></i>Pedidos
         </h2>
+        <a href="/pedidos/novo" class="btn btn-primary" th:if="${podeRegistrarPedidos}">
+            <i class="bi bi-plus-lg me-1"></i> Novo Pedido
+        </a>
     </div>
 
     <!-- Mensagens de feedback -->
@@ -27,22 +30,23 @@
 
     <!-- Tabela -->
     <div class="card shadow-sm">
-        <div class="card-body p-0">
+        <div class="card-body p-0 table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark">
                     <tr>
                         <th class="ps-4">ID</th>
                         <th>Cliente ID</th>
-                        <th>Tipo de Pizza</th>
-                        <th>Sabor</th>
-                        <th>Quantidade</th>
+                        <th>Itens</th>
+                        <th>Valor total</th>
+                        <th>Registrado por</th>
+                        <th>Entrada</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <!-- Lista vazia -->
                     <tr th:if="${#lists.isEmpty(pedidos)}">
-                        <td colspan="6" class="text-center text-muted py-5">
+                        <td colspan="7" class="text-center text-muted py-5">
                             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                             Nenhum pedido encontrado.
                         </td>
@@ -51,9 +55,21 @@
                     <tr th:each="pedido : ${pedidos}">
                         <td class="ps-4 text-muted" th:text="${pedido.id}"></td>
                         <td th:text="${pedido.clienteId}"></td>
-                        <td th:text="${pedido.tipoPizza}"></td>
-                        <td th:text="${pedido.sabor}"></td>
-                        <td th:text="${pedido.quantidade}"></td>
+                        <td>
+                            <div th:each="item : ${pedido.itens}">
+                                <span th:text="${item.quantidade}"></span> ×
+                                <span th:text="${item.nomeProduto}"></span>
+                                <small class="text-muted" th:text="${'R$ ' + #numbers.formatDecimal(item.precoUnitario, 1, 'POINT', 2, 'COMMA')}"></small>
+                            </div>
+                            <div th:if="${#lists.isEmpty(pedido.itens)}">
+                                <span th:text="${pedido.tipoPizza}"></span>
+                                <span th:text="${pedido.sabor}"></span>
+                                <span th:text="${pedido.quantidade}"></span>
+                            </div>
+                        </td>
+                        <td th:text="${pedido.valorTotal != null ? 'R$ ' + #numbers.formatDecimal(pedido.valorTotal, 1, 'POINT', 2, 'COMMA') : '—'}"></td>
+                        <td th:text="${pedido.responsavelRegistro ?: '—'}"></td>
+                        <td th:text="${pedido.dataHoraEntrada != null ? #temporals.format(pedido.dataHoraEntrada, 'dd/MM/yyyy HH:mm') : '—'}"></td>
                         <td>
                             <span class="badge"
                                   th:classappend="${pedido.status == 'ENTREGUE'} ? 'bg-success' :

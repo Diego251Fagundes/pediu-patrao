@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.umc.pediupatrao.entity.Cliente;
 import com.umc.pediupatrao.entity.Pedido;
+import com.umc.pediupatrao.entity.ItemPedido;
 import com.umc.pediupatrao.entity.Produto;
 import com.umc.pediupatrao.entity.Usuario;
 import com.umc.pediupatrao.service.ClienteService;
@@ -11,9 +12,11 @@ import com.umc.pediupatrao.service.PedidoService;
 import com.umc.pediupatrao.service.ProdutoService;
 import com.umc.pediupatrao.service.UsuarioService;
 import java.util.List;
+import java.util.ArrayList;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.security.core.Authentication;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -43,6 +46,7 @@ public class HomeController {
         model.addAttribute("podeAdministrarUsuarios", request.isUserInRole("ADMIN"));
         model.addAttribute("podeEditarClientes", request.isUserInRole("ATENDENTE"));
         model.addAttribute("podeExcluirClientes", request.isUserInRole("ADMIN"));
+        model.addAttribute("podeRegistrarPedidos", request.isUserInRole("GERENTE") || request.isUserInRole("ATENDENTE"));
     }
 
     @GetMapping("/login")
@@ -140,6 +144,40 @@ public class HomeController {
         model.addAttribute("content", "pedidos :: content");
         log.info("Carregando fragmento: pedidos :: content");
         return "layout";
+    }
+
+    @GetMapping("/pedidos/novo")
+    public String novoPedidoForm(Model model) {
+        Pedido pedido = new Pedido();
+        pedido.getItens().add(new ItemPedido());
+        model.addAttribute("pedido", pedido);
+        carregarFormularioPedido(model);
+        return "layout";
+    }
+
+    @PostMapping("/pedidos/salvar")
+    public String salvarPedido(@ModelAttribute Pedido pedido, Authentication authentication,
+            Model model, RedirectAttributes redirectAttributes) {
+        try {
+            pedidoService.criarPedido(pedido, authentication.getName());
+        } catch (IllegalArgumentException exception) {
+            model.addAttribute("pedido", pedido);
+            model.addAttribute("erro", exception.getMessage());
+            carregarFormularioPedido(model);
+            return "layout";
+        }
+        redirectAttributes.addFlashAttribute("sucesso", "Pedido registrado com sucesso!");
+        return "redirect:/pedidos";
+    }
+
+    private void carregarFormularioPedido(Model model) {
+        Pedido pedido = (Pedido) model.getAttribute("pedido");
+        if (pedido.getItens() == null || pedido.getItens().isEmpty()) {
+            pedido.setItens(new ArrayList<>(List.of(new ItemPedido())));
+        }
+        model.addAttribute("clientes", clienteService.listarClientes());
+        model.addAttribute("produtos", produtoService.listarProdutos());
+        model.addAttribute("content", "pedido-form :: content");
     }
 
     // Produtos

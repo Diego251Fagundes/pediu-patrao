@@ -24,6 +24,7 @@
             <!-- Formulário de Cadastro -->
             <div class="collapse" id="formularioProduto">
                 <div class="card card-body">
+                    <div id="erro-produto" class="alert alert-danger d-none" role="alert"></div>
                     <form th:action="@{/api/produtos}" method="post" id="produtoForm">
                         <div class="mb-3">
                             <label for="nome" class="form-label">Nome do Produto</label>
@@ -89,6 +90,38 @@
                     </tr>
                 </tbody>
             </table>
+
+            <script>
+                document.getElementById('produtoForm').addEventListener('submit', async event => {
+                    event.preventDefault();
+                    const form = event.target;
+                    const erro = document.getElementById('erro-produto');
+                    erro.classList.add('d-none');
+                    try {
+                        const response = await fetch(form.action, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                [document.querySelector('meta[name="_csrf_header"]').content]:
+                                    document.querySelector('meta[name="_csrf"]').content
+                            },
+                            body: JSON.stringify({
+                                nome: form.elements.nome.value,
+                                tipo: form.elements.tipo.value,
+                                preco: Number(form.elements.preco.value),
+                                ativo: form.elements.ativo.checked
+                            })
+                        });
+                        if (!response.ok) {
+                            throw new Error('Não foi possível cadastrar o produto. Confira os dados informados.');
+                        }
+                        window.location.reload();
+                    } catch (exception) {
+                        erro.textContent = exception.message;
+                        erro.classList.remove('d-none');
+                    }
+                });
+            </script>
         </div>
         <script th:src="@{/js/script.js}"></script>
     </body>

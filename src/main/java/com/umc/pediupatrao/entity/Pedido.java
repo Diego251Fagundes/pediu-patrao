@@ -1,8 +1,14 @@
 package com.umc.pediupatrao.entity;
 
 import jakarta.persistence.Entity;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 
 @Document(collection = "pedidos")
 @Entity
@@ -14,6 +20,13 @@ public class Pedido {
     private String status;
     private int quantidade;
     private String sabor;
+    private List<ItemPedido> itens = new ArrayList<>();
+    @Field(targetType = FieldType.DECIMAL128)
+    private BigDecimal descontoPercentual = BigDecimal.ZERO;
+    @Field(targetType = FieldType.DECIMAL128)
+    private BigDecimal valorTotal;
+    private String responsavelRegistro;
+    private LocalDateTime dataHoraEntrada;
 
     public String getId() {
         return id;
@@ -62,6 +75,52 @@ public class Pedido {
     public void setSabor(String sabor) {
         this.sabor = sabor;
     }
+
+    public List<ItemPedido> getItens() {
+        return itens;
+    }
+
+    public void setItens(List<ItemPedido> itens) {
+        this.itens = itens;
+    }
+
+    public BigDecimal getDescontoPercentual() {
+        return descontoPercentual;
+    }
+
+    public void setDescontoPercentual(BigDecimal descontoPercentual) {
+        this.descontoPercentual = descontoPercentual;
+    }
+
+    public BigDecimal getValorTotal() {
+        return valorTotal;
+    }
+
+    public void setValorTotal(BigDecimal valorTotal) {
+        this.valorTotal = valorTotal;
+    }
+
+    public String getResponsavelRegistro() {
+        return responsavelRegistro;
+    }
+
+    public void setResponsavelRegistro(String responsavelRegistro) {
+        this.responsavelRegistro = responsavelRegistro;
+    }
+
+    public LocalDateTime getDataHoraEntrada() {
+        return dataHoraEntrada;
+    }
+
+    public void setDataHoraEntrada(LocalDateTime dataHoraEntrada) {
+        this.dataHoraEntrada = dataHoraEntrada;
+    }
+
+
+
+
+
+
     
     
 }

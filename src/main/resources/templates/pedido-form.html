@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Novo Pedido</title>
+</head>
+<body>
+<div th:fragment="content">
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/pedidos" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <h2 class="fw-bold mb-0">Novo Pedido</h2>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <div class="alert alert-danger" th:if="${erro}" th:text="${erro}"></div>
+            <div class="alert alert-warning" th:if="${#lists.isEmpty(clientes) or #lists.isEmpty(produtos)}">
+                Cadastre pelo menos um cliente e um produto antes de registrar um pedido.
+            </div>
+            <form th:action="@{/pedidos/salvar}" th:object="${pedido}" method="post">
+                <div class="mb-4">
+                    <label for="clienteId" class="form-label fw-medium">Cliente</label>
+                    <select id="clienteId" class="form-select" th:field="*{clienteId}" required>
+                        <option value="">Selecione um cliente</option>
+                        <option th:each="cliente : ${clientes}" th:value="${cliente.id}"
+                                th:text="${cliente.nome}"></option>
+                    </select>
+                </div>
+
+                <h5 class="mb-3">Itens do pedido</h5>
+                <div id="itens-pedido">
+                    <div class="row g-3 align-items-end mb-3 item-pedido" th:each="item, indice : ${pedido.itens}">
+                        <div class="col-md-8">
+                            <label class="form-label fw-medium" data-label="produtoId">Produto</label>
+                            <select class="form-select" data-campo="produtoId"
+                                    th:name="${'itens[' + indice.index + '].produtoId'}" required>
+                                <option value="">Selecione um produto</option>
+                                <option th:each="produto : ${produtos}" th:value="${produto.id}"
+                                        th:selected="${produto.id == item.produtoId}"
+                                        th:text="${produto.nome + ' — R$ ' + #numbers.formatDecimal(produto.preco, 1, 'POINT', 2, 'COMMA')}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-medium" data-label="quantidade">Quantidade</label>
+                            <input type="number" class="form-control" data-campo="quantidade" min="1" step="1"
+                                   th:name="${'itens[' + indice.index + '].quantidade'}"
+                                   th:value="${item.quantidade > 0 ? item.quantidade : 1}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-outline-danger w-100 remover-item">
+                                <i class="bi bi-trash-fill"></i> Remover
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" id="adicionar-item" class="btn btn-outline-primary mb-4">
+                    <i class="bi bi-plus-lg me-1"></i> Adicionar item
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary"
+                            th:disabled="${#lists.isEmpty(clientes) or #lists.isEmpty(produtos)}">
+                        <i class="bi bi-check-lg me-1"></i> Registrar Pedido
+                    </button>
+                    <a href="/pedidos" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const itensPedido = document.getElementById('itens-pedido');
+
+        function atualizarIndices() {
+            const linhas = itensPedido.querySelectorAll('.item-pedido');
+            linhas.forEach((linha, indice) => {
+                linha.querySelectorAll('[data-campo]').forEach(campo => {
+                    campo.name = `itens[${indice}].${campo.dataset.campo}`;
+                    campo.id = `item-${indice}-${campo.dataset.campo}`;
+                    linha.querySelector(`[data-label="${campo.dataset.campo}"]`).htmlFor = campo.id;
+                });
+                linha.querySelector('.remover-item').disabled = linhas.length === 1;
+            });
+        }
+
+        document.getElementById('adicionar-item').addEventListener('click', () => {
+            const linha = itensPedido.querySelector('.item-pedido').cloneNode(true);
+            linha.querySelector('select').value = '';
+            linha.querySelector('input').value = 1;
+            itensPedido.appendChild(linha);
+            atualizarIndices();
+        });
+
+        itensPedido.addEventListener('click', event => {
+            const botao = event.target.closest('.remover-item');
+            if (botao && itensPedido.querySelectorAll('.item-pedido').length > 1) {
+                botao.closest('.item-pedido').remove();
+                atualizarIndices();
+            }
+        });
+
+        atualizarIndices();
+    </script>
+</div>
+</body>
+</html>

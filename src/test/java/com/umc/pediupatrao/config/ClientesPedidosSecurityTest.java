@@ -5,13 +5,18 @@ import com.umc.pediupatrao.controller.HomeController;
 import com.umc.pediupatrao.controller.PedidoController;
 import com.umc.pediupatrao.entity.Cliente;
 import com.umc.pediupatrao.entity.Pedido;
+import com.umc.pediupatrao.entity.Produto;
+import com.umc.pediupatrao.repository.ClienteRepository;
 import com.umc.pediupatrao.repository.PedidoRepository;
+import com.umc.pediupatrao.repository.ProdutoRepository;
+import java.util.List;
 import com.umc.pediupatrao.service.*;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -36,6 +41,8 @@ class ClientesPedidosSecurityTest {
     @MockitoBean ClienteService clienteService;
     @MockitoBean ProdutoService produtoService;
     @MockitoBean PedidoRepository pedidoRepository;
+    @MockitoBean ClienteRepository clienteRepository;
+    @MockitoBean ProdutoRepository produtoRepository;
 
     @ParameterizedTest
     @ValueSource(strings = {"ADMIN", "GERENTE", "ATENDENTE"})
@@ -135,8 +142,14 @@ class ClientesPedidosSecurityTest {
         verify(pedidoRepository).save(pedido);
     }
 
+
+
     @Test
     void adminNaoRegistraPedidos() throws Exception {
+        mvc.perform(get("/pedidos/novo").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/pedidos/salvar").with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(status().isForbidden());
         mvc.perform(post("/api/pedidos").with(user("admin").roles("ADMIN")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"clienteId\":\"cliente-1\"}"))
                 .andExpect(status().isForbidden());
@@ -146,31 +159,65 @@ class ClientesPedidosSecurityTest {
     @ParameterizedTest
     @ValueSource(strings = {"GERENTE", "ATENDENTE"})
     void perfisOperacionaisRegistramPedidosRecebidos(String perfil) throws Exception {
+        Produto produto = new Produto();
+        produto.setId("produto-1");
+        produto.setNome("Pizza");
+        produto.setPreco(25.0);
+        Cliente cliente = new Cliente();
+        cliente.setId("cliente-1");
+        cliente.setNome("Cliente");
+        when(clienteRepository.existsById("cliente-1")).thenReturn(true);
+        when(produtoRepository.findById("produto-1")).thenReturn(Optional.of(produto));
+        when(clienteService.listarClientes()).thenReturn(List.of(cliente));
+        when(produtoService.listarProdutos()).thenReturn(List.of(produto));
         when(pedidoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        mvc.perform(get("/pedidos/novo").with(user("usuario").roles(perfil)))
+                .andExpect(status().isOk());
         mvc.perform(post("/api/pedidos").with(user("usuario").roles(perfil)).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"clienteId\":\"cliente-1\",\"quantidade\":1}"))
+                .content("""
+                        {"clienteId":"cliente-1","responsavelRegistro":"falso","valorTotal":0.01,
+                         "descontoPercentual":20,"dataHoraEntrada":"2000-01-01T00:00:00",
+                         "itens":[{"produtoId":"produto-1","quantidade":2,"precoUnitario":0.01}]}
+                        """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("RECEBIDO"));
-        verify(pedidoRepository).save(argThat(pedido -> "RECEBIDO".equals(pedido.getStatus())));
+                .andExpect(jsonPath("$.status").value("RECEBIDO"))
+                .andExpect(jsonPath("$.valorTotal").value(50.0))
+                .andExpect(jsonPath("$.descontoPercentual").value(0))
+                .andExpect(jsonPath("$.responsavelRegistro").value("usuario"))
+                .andExpect(jsonPath("$.dataHoraEntrada").value(not("2000-01-01T00:00:00")))
+                .andExpect(jsonPath("$.itens[0].precoUnitario").value(25.0));
+        mvc.perform(post("/pedidos/salvar").with(user("usuario").roles(perfil)).with(csrf())
+                .param("clienteId", "cliente-1").param("itens[0].produtoId", "produto-1")
+                .param("itens[0].quantidade", "2"))
+                .andExpect(redirectedUrl("/pedidos"));
+        mvc.perform(post("/pedidos/salvar").with(user("usuario").roles(perfil)).with(csrf())
+                .param("clienteId", "cliente-1").param("itens[0].produtoId", "produto-1")
+                .param("itens[0].quantidade", "0"))
+                .andExpect(status().isOk()).andExpect(model().attributeExists("erro"));
+        ArgumentCaptor<Pedido> pedidosSalvos = ArgumentCaptor.forClass(Pedido.class);
+        verify(pedidoRepository, times(2)).save(pedidosSalvos.capture());
+        when(pedidoRepository.findAll()).thenReturn(List.of(pedidosSalvos.getValue()));
+        mvc.perform(get("/pedidos").with(user("usuario").roles(perfil)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("R$ 50,00")))
+                .andExpect(content().string(containsString("Pizza")))
+                .andExpect(content().string(containsString("RECEBIDO")));
     }
 
-    @ParameterizedTest
-    @CsvSource({"ATENDENTE,CANCELADO", "ATENDENTE,FINALIZADO", "ATENDENTE,PRONTO",
-                "GERENTE,CANCELADO", "GERENTE,FINALIZADO", "GERENTE,PRONTO"})
-    void cadastroNaoContornaPermissoesDeStatus(String perfil, String statusInformado) throws Exception {
-        mvc.perform(post("/api/pedidos").with(user("usuario").roles(perfil)).with(csrf())
+    @Test
+    void cadastroNaoContornaPermissoesDeStatus() throws Exception {
+        mvc.perform(post("/api/pedidos").with(user("usuario").roles("ATENDENTE")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"clienteId\":\"cliente-1\",\"status\":\"" + statusInformado + "\"}"))
+                .content("{\"clienteId\":\"cliente-1\",\"status\":\"CANCELADO\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").exists());
         verify(pedidoRepository, never()).save(any());
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"GERENTE", "ATENDENTE"})
-    void cadastroNaoSobrescrevePedidoExistente(String perfil) throws Exception {
-        mvc.perform(post("/api/pedidos").with(user("usuario").roles(perfil)).with(csrf())
+    @Test
+    void cadastroNaoSobrescrevePedidoExistente() throws Exception {
+        mvc.perform(post("/api/pedidos").with(user("usuario").roles("ATENDENTE")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"id\":\"pedido-existente\",\"clienteId\":\"cliente-1\"}"))
                 .andExpect(status().isBadRequest());

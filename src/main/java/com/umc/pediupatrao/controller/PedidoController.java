@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 
 @RestController
@@ -16,8 +17,8 @@ public class PedidoController {
     private PedidoService pedidoService;
 
     @PostMapping
-    public Pedido criarPedido(@RequestBody Pedido pedido) {
-        return pedidoService.criarPedido(pedido);
+    public Pedido criarPedido(@RequestBody Pedido pedido, Authentication authentication) {
+        return pedidoService.criarPedido(pedido, authentication.getName());
     }
 
     @GetMapping
