@@ -1,12 +1,16 @@
 package com.umc.pediupatrao.service;
 
 import com.umc.pediupatrao.dto.IndicadoresDashboard;
+import com.umc.pediupatrao.dto.VendaDiaria;
 import com.umc.pediupatrao.entity.Pedido;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,24 +22,14 @@ public class DashboardService {
     }
 
     public IndicadoresDashboard consultarIndicadores(LocalDate dataInicio, LocalDate dataFim) {
-        if (dataInicio == null || dataFim == null || dataInicio.isAfter(dataFim)
-                || LocalDate.MAX.equals(dataFim)) {
-            throw new IllegalArgumentException("Informe um período válido com a data inicial anterior ou igual à final.");
-        }
-
-        // O limite exclusivo inclui todos os horários da data final.
-        List<Pedido> pedidos = pedidoRepository
-                .findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(
-                        dataInicio.atStartOfDay(), dataFim.plusDays(1).atStartOfDay());
+        List<Pedido> pedidos = consultarPedidosNoPeriodo(dataInicio, dataFim);
 
         long finalizados = 0;
         long cancelados = 0;
         BigDecimal valorVendas = BigDecimal.ZERO;
         for (Pedido pedido : pedidos) {
             if ("FINALIZADO".equals(pedido.getStatus())) {
-                if (pedido.getValorTotal() == null || pedido.getValorTotal().signum() < 0) {
-                    throw new IllegalStateException("Pedido finalizado sem valor total válido.");
-                }
+                validarValorTotal(pedido);
                 finalizados++;
                 // O valor persistido já inclui o desconto do pedido.
                 valorVendas = valorVendas.add(pedido.getValorTotal());
@@ -48,5 +42,41 @@ public class DashboardService {
         BigDecimal ticketMedio = finalizados == 0 ? new BigDecimal("0.00")
                 : valorVendas.divide(BigDecimal.valueOf(finalizados), 2, RoundingMode.HALF_UP);
         return new IndicadoresDashboard(pedidos.size(), finalizados, cancelados, valorVendas, ticketMedio);
+    }
+
+    public List<VendaDiaria> consultarVendasDiarias(LocalDate dataInicio, LocalDate dataFim) {
+        List<Pedido> pedidos = consultarPedidosNoPeriodo(dataInicio, dataFim);
+        Map<LocalDate, VendaDiaria> vendas = new LinkedHashMap<>();
+        for (LocalDate dia = dataInicio; !dia.isAfter(dataFim); dia = dia.plusDays(1)) {
+            vendas.put(dia, new VendaDiaria(dia, 0, new BigDecimal("0.00")));
+        }
+
+        for (Pedido pedido : pedidos) {
+            if ("FINALIZADO".equals(pedido.getStatus())) {
+                validarValorTotal(pedido);
+                // Mantém a mesma data de referência utilizada pelos indicadores.
+                LocalDate dia = pedido.getDataHoraEntrada().toLocalDate();
+                VendaDiaria anterior = vendas.get(dia);
+                vendas.put(dia, new VendaDiaria(dia, anterior.quantidadePedidos() + 1,
+                        anterior.valorVendas().add(pedido.getValorTotal()).setScale(2, RoundingMode.HALF_UP)));
+            }
+        }
+        return new ArrayList<>(vendas.values());
+    }
+
+    private List<Pedido> consultarPedidosNoPeriodo(LocalDate dataInicio, LocalDate dataFim) {
+        if (dataInicio == null || dataFim == null || dataInicio.isAfter(dataFim)
+                || LocalDate.MAX.equals(dataFim)) {
+            throw new IllegalArgumentException("Informe um período válido com a data inicial anterior ou igual à final.");
+        }
+        // O limite exclusivo inclui todos os horários da data final.
+        return pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(
+                dataInicio.atStartOfDay(), dataFim.plusDays(1).atStartOfDay());
+    }
+
+    private void validarValorTotal(Pedido pedido) {
+        if (pedido.getValorTotal() == null || pedido.getValorTotal().signum() < 0) {
+            throw new IllegalStateException("Pedido finalizado sem valor total válido.");
+        }
     }
 }

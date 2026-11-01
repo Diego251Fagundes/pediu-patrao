@@ -95,6 +95,76 @@ class DashboardServiceTest {
         assertThatIllegalStateException().isThrownBy(() -> service.consultarIndicadores(inicio, fim));
     }
 
+    @Test
+    void agrupaVendasPorDataDeEntradaEmOrdemComDiasZerados() {
+        Pedido ultimo = pedido("FINALIZADO", "25.10");
+        ultimo.setDataHoraEntrada(inicio.plusDays(2).atTime(23, 59, 59));
+        Pedido primeiro = pedido("FINALIZADO", "80.00");
+        primeiro.setDescontoPercentual(new BigDecimal("20"));
+        primeiro.setDataHoraEntrada(inicio.atStartOfDay());
+        Pedido segundo = pedido("FINALIZADO", "19.99");
+        segundo.setDataHoraEntrada(inicio.atTime(18, 30));
+        Pedido cancelado = pedido("CANCELADO", "200.00");
+        cancelado.setDataHoraEntrada(inicio.plusDays(1).atTime(12, 0));
+        Pedido aberto = pedido("RECEBIDO", "50.00");
+        aberto.setDataHoraEntrada(inicio.plusDays(1).atTime(13, 0));
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(ultimo, cancelado, primeiro, aberto, segundo));
+
+        var vendas = service.consultarVendasDiarias(inicio, inicio.plusDays(2));
+
+        assertThat(vendas).extracting(venda -> venda.data())
+                .containsExactly(inicio, inicio.plusDays(1), inicio.plusDays(2));
+        assertThat(vendas).extracting(venda -> venda.quantidadePedidos()).containsExactly(2L, 0L, 1L);
+        assertThat(vendas.get(0).valorVendas()).isEqualByComparingTo("99.99");
+        assertThat(vendas.get(1).valorVendas()).isEqualByComparingTo("0.00");
+        assertThat(vendas.get(2).valorVendas()).isEqualByComparingTo("25.10");
+        verify(pedidoRepository).findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(
+                inicio.atStartOfDay(), inicio.plusDays(3).atStartOfDay());
+
+        var indicadores = service.consultarIndicadores(inicio, inicio.plusDays(2));
+        assertThat(vendas.stream().mapToLong(venda -> venda.quantidadePedidos()).sum())
+                .isEqualTo(indicadores.pedidosFinalizados());
+        assertThat(vendas.stream().map(venda -> venda.valorVendas()).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo(indicadores.valorVendas());
+    }
+
+    @Test
+    void retornaSerieZeradaSemVendasInclusiveParaUmUnicoDia() {
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of());
+        var vendas = service.consultarVendasDiarias(inicio, inicio.plusDays(2));
+        assertThat(vendas).hasSize(3).allSatisfy(venda -> {
+            assertThat(venda.quantidadePedidos()).isZero();
+            assertThat(venda.valorVendas()).isEqualByComparingTo("0.00");
+        });
+        var unicoDia = service.consultarVendasDiarias(inicio, inicio);
+        assertThat(unicoDia).hasSize(1);
+        assertThat(unicoDia.get(0).data()).isEqualTo(inicio);
+        assertThat(unicoDia.get(0).valorVendas()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void rejeitaPeriodoInvalidoNaSerieAntesDeConsultarBanco() {
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarVendasDiarias(fim, inicio));
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarVendasDiarias(null, fim));
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarVendasDiarias(inicio, null));
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarVendasDiarias(inicio, LocalDate.MAX));
+        verifyNoInteractions(pedidoRepository);
+    }
+
+    @Test
+    void naoApresentaSerieComValorInvalidoComoZero() {
+        Pedido pedido = pedido("FINALIZADO", "10.00");
+        pedido.setDataHoraEntrada(inicio.atStartOfDay());
+        pedido.setValorTotal(null);
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(pedido));
+        assertThatIllegalStateException().isThrownBy(() -> service.consultarVendasDiarias(inicio, fim));
+        pedido.setValorTotal(new BigDecimal("-1.00"));
+        assertThatIllegalStateException().isThrownBy(() -> service.consultarVendasDiarias(inicio, fim));
+    }
+
     private Pedido pedido(String status, String valor) {
         Pedido pedido = new Pedido();
         pedido.setStatus(status);
