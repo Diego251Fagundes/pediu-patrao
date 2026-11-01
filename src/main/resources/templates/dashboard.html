@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head><title>Dashboard administrativo</title></head>
+<body>
+<section th:fragment="content" id="dashboard" th:data-api="@{/api/dashboard/}"
+         aria-labelledby="dashboard-titulo">
+    <header class="mb-4">
+        <h1 id="dashboard-titulo" class="h2 fw-bold mb-2">Dashboard de vendas</h1>
+        <p class="text-muted mb-0">Acompanhe as vendas e os pedidos do estabelecimento.</p>
+    </header>
+
+    <form id="dashboard-filtros" class="dashboard-filtros mb-4">
+        <div>
+            <label for="data-inicio" class="form-label">Data inicial</label>
+            <input id="data-inicio" name="dataInicio" type="date" class="form-control" required>
+        </div>
+        <div>
+            <label for="data-fim" class="form-label">Data final</label>
+            <input id="data-fim" name="dataFim" type="date" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+        <button type="button" id="dashboard-atualizar" class="btn btn-outline-secondary">Atualizar</button>
+    </form>
+
+    <div id="dashboard-erro" class="alert alert-danger" role="alert" hidden></div>
+    <p id="dashboard-status" class="small text-muted" role="status" aria-live="polite">Carregando dados…</p>
+    <noscript><p class="alert alert-warning">Ative o JavaScript para consultar o dashboard.</p></noscript>
+
+    <div id="dashboard-resultados" aria-busy="true" hidden>
+        <p id="dashboard-vazio" class="alert alert-info" hidden>Nenhum pedido encontrado neste período. Experimente outras datas.</p>
+        <dl class="dashboard-indicadores">
+            <div><dt>Valor das vendas</dt><dd id="valor-vendas">—</dd></div>
+            <div><dt>Pedidos finalizados</dt><dd id="pedidos-finalizados">—</dd></div>
+            <div><dt>Ticket médio</dt><dd id="ticket-medio">—</dd></div>
+            <div><dt>Total de pedidos</dt><dd id="total-pedidos">—</dd></div>
+            <div><dt>Pedidos cancelados</dt><dd id="pedidos-cancelados">—</dd></div>
+        </dl>
+        <p class="small text-muted">Vendas e ticket médio consideram pedidos finalizados, com os descontos registrados.
+            O período é consultado pela data de entrada do pedido.</p>
+    </div>
+</section>
+</body>
+</html>

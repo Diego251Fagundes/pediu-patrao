@@ -1,0 +1,20 @@
+/* Complementa o Bootstrap utilizado nas demais páginas. */
+body:has(#dashboard) main { min-width: 0; }
+#dashboard { max-width: 1440px; padding: 0 12px 32px; }
+#dashboard [hidden] { display: none !important; }
+.dashboard-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.dashboard-filtros input { min-height: 44px; }
+.dashboard-filtros .btn { min-height: 44px; }
+.dashboard-indicadores { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; padding: 24px 0; border-block: 1px solid #dee2e6; }
+.dashboard-indicadores dt { color: #495057; font-size: 0.9rem; font-weight: 500; }
+.dashboard-indicadores dd { font-size: clamp(1.3rem, 2vw, 1.8rem); font-weight: 700; margin: 8px 0 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+#dashboard :focus-visible { outline: 3px solid #0d6efd; outline-offset: 3px; }
+@media (max-width: 1100px) {
+    .dashboard-indicadores { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+    #dashboard { padding-inline: 0; padding-top: 44px; }
+    .dashboard-filtros > div { flex: 1 1 140px; }
+    .dashboard-filtros .btn { flex: 1 1 140px; }
+    .dashboard-indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+}
