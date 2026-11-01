@@ -1,8 +1,10 @@
 package com.umc.pediupatrao.controller;
 
 import com.umc.pediupatrao.dto.IndicadoresDashboard;
+import com.umc.pediupatrao.dto.VendaDiaria;
 import com.umc.pediupatrao.service.DashboardService;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,13 @@ public class DashboardController {
         return dashboardService.consultarIndicadores(dataInicio, dataFim);
     }
 
+    @GetMapping("/vendas")
+    public List<VendaDiaria> vendas(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim) {
+        return dashboardService.consultarVendasDiarias(dataInicio, dataFim);
+    }
+
     @ExceptionHandler({IllegalArgumentException.class, MissingServletRequestParameterException.class,
         MethodArgumentTypeMismatchException.class})
     public ResponseEntity<Map<String, String>> tratarPeriodoInvalido(Exception exception) {
@@ -40,6 +49,6 @@ public class DashboardController {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> tratarDadosInconsistentes() {
         return ResponseEntity.internalServerError().body(Map.of("erro",
-                "Não foi possível calcular os indicadores. Verifique os valores dos pedidos finalizados."));
+                "Não foi possível calcular as vendas. Verifique os valores dos pedidos finalizados."));
     }
 }
