@@ -165,6 +165,56 @@ class DashboardServiceTest {
         assertThatIllegalStateException().isThrownBy(() -> service.consultarVendasDiarias(inicio, fim));
     }
 
+    @Test
+    void contaPedidosEmTodasAsSituacoesIncluindoCancelados() {
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(pedido("RECEBIDO", "10.00"), pedido("RECEBIDO", "20.00"),
+                        pedido("EM_PREPARACAO", "30.00"), pedido("PRONTO", "40.00"),
+                        pedido("SAIU_PARA_ENTREGA", "50.00"), pedido("RETIRADO", "60.00"),
+                        pedido("FINALIZADO", "70.00"), pedido("CANCELADO", "80.00")));
+
+        var situacoes = service.consultarSituacoes(inicio, fim);
+
+        assertThat(situacoes).extracting(situacao -> situacao.status()).containsExactly(
+                "RECEBIDO", "EM_PREPARACAO", "PRONTO", "SAIU_PARA_ENTREGA", "RETIRADO", "FINALIZADO", "CANCELADO");
+        assertThat(situacoes).extracting(situacao -> situacao.quantidadePedidos())
+                .containsExactly(2L, 1L, 1L, 1L, 1L, 1L, 1L);
+        var indicadores = service.consultarIndicadores(inicio, fim);
+        assertThat(situacoes.stream().mapToLong(situacao -> situacao.quantidadePedidos()).sum())
+                .isEqualTo(indicadores.totalPedidos());
+        verify(pedidoRepository, times(2)).findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(
+                inicio.atStartOfDay(), fim.plusDays(1).atStartOfDay());
+    }
+
+    @Test
+    void retornaSituacoesZeradasQuandoNaoHaPedidosNoPeriodo() {
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of());
+        var situacoes = service.consultarSituacoes(inicio, inicio);
+        assertThat(situacoes).hasSize(7).allSatisfy(situacao ->
+                assertThat(situacao.quantidadePedidos()).isZero());
+        verify(pedidoRepository).findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(
+                inicio.atStartOfDay(), inicio.plusDays(1).atStartOfDay());
+    }
+
+    @Test
+    void mantemSituacoesSemPedidosComZeroAoContarUmaSituacao() {
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(pedido("PRONTO", "40.00")));
+        var situacoes = service.consultarSituacoes(inicio, fim);
+        assertThat(situacoes).hasSize(7).allSatisfy(situacao ->
+                assertThat(situacao.quantidadePedidos()).isEqualTo("PRONTO".equals(situacao.status()) ? 1L : 0L));
+    }
+
+    @Test
+    void rejeitaPeriodoInvalidoNasSituacoesAntesDeConsultarBanco() {
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarSituacoes(fim, inicio));
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarSituacoes(null, fim));
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarSituacoes(inicio, null));
+        assertThatIllegalArgumentException().isThrownBy(() -> service.consultarSituacoes(inicio, LocalDate.MAX));
+        verifyNoInteractions(pedidoRepository);
+    }
+
     private Pedido pedido(String status, String valor) {
         Pedido pedido = new Pedido();
         pedido.setStatus(status);

@@ -1,6 +1,7 @@
 package com.umc.pediupatrao.service;
 
 import com.umc.pediupatrao.dto.IndicadoresDashboard;
+import com.umc.pediupatrao.dto.SituacaoPedido;
 import com.umc.pediupatrao.dto.VendaDiaria;
 import com.umc.pediupatrao.entity.Pedido;
 import com.umc.pediupatrao.repository.PedidoRepository;
@@ -62,6 +63,21 @@ public class DashboardService {
             }
         }
         return new ArrayList<>(vendas.values());
+    }
+
+    public List<SituacaoPedido> consultarSituacoes(LocalDate dataInicio, LocalDate dataFim) {
+        List<Pedido> pedidos = consultarPedidosNoPeriodo(dataInicio, dataFim);
+        Map<String, Long> quantidades = new LinkedHashMap<>();
+        for (String status : List.of("RECEBIDO", "EM_PREPARACAO", "PRONTO", "SAIU_PARA_ENTREGA",
+                "RETIRADO", "FINALIZADO", "CANCELADO")) {
+            quantidades.put(status, 0L);
+        }
+        for (Pedido pedido : pedidos) {
+            quantidades.merge(pedido.getStatus(), 1L, Long::sum);
+        }
+        return quantidades.entrySet().stream()
+                .map(entrada -> new SituacaoPedido(entrada.getKey(), entrada.getValue()))
+                .toList();
     }
 
     private List<Pedido> consultarPedidosNoPeriodo(LocalDate dataInicio, LocalDate dataFim) {
