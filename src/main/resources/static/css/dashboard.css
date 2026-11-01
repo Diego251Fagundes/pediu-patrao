@@ -9,12 +9,21 @@ body:has(#dashboard) main { min-width: 0; }
 .dashboard-indicadores dt { color: #495057; font-size: 0.9rem; font-weight: 500; }
 .dashboard-indicadores dd { font-size: clamp(1.3rem, 2vw, 1.8rem); font-weight: 700; margin: 8px 0 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 #dashboard :focus-visible { outline: 3px solid #0d6efd; outline-offset: 3px; }
+.dashboard-graficos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.dashboard-secao { min-width: 0; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; }
+.dashboard-grafico { position: relative; height: 280px; }
+#dashboard summary { cursor: pointer; color: #0a58ca; padding-block: 8px; }
+#dashboard summary:hover { text-decoration: underline; }
+#dashboard td { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+#dashboard th { white-space: nowrap; }
 @media (max-width: 1100px) {
     .dashboard-indicadores { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dashboard-graficos { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 767px) {
     #dashboard { padding-inline: 0; padding-top: 44px; }
     .dashboard-filtros > div { flex: 1 1 140px; }
     .dashboard-filtros .btn { flex: 1 1 140px; }
     .dashboard-indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+    .dashboard-secao { padding: 16px; }
 }
