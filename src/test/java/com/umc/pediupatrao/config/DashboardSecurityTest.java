@@ -2,6 +2,7 @@ package com.umc.pediupatrao.config;
 
 import com.umc.pediupatrao.controller.DashboardController;
 import com.umc.pediupatrao.entity.Pedido;
+import com.umc.pediupatrao.entity.ItemPedido;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import com.umc.pediupatrao.service.DashboardService;
 import com.umc.pediupatrao.service.UsuarioDetailsService;
@@ -54,14 +55,16 @@ class DashboardSecurityTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas", "/api/dashboard/situacoes"})
+    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas", "/api/dashboard/situacoes",
+        "/api/dashboard/produtos-mais-vendidos"})
     void exigeAutenticacaoSemRedirecionarParaHtml(String rota) throws Exception {
         mvc.perform(get(rota)).andExpect(status().isUnauthorized());
         verifyNoInteractions(pedidoRepository);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas", "/api/dashboard/situacoes"})
+    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas", "/api/dashboard/situacoes",
+        "/api/dashboard/produtos-mais-vendidos"})
     void atendenteNaoConsultaDashboard(String rota) throws Exception {
         mvc.perform(get(rota).with(user("atendente").roles("ATENDENTE")))
                 .andExpect(status().isForbidden());
@@ -71,7 +74,8 @@ class DashboardSecurityTest {
     @ParameterizedTest
     @CsvSource({"2026-10-31,2026-10-01", "invalida,2026-10-31", "2026-02-30,2026-10-31"})
     void rejeitaDatasInvalidas(String inicio, String fim) throws Exception {
-        for (String rota : List.of(ROTA, "/api/dashboard/vendas", "/api/dashboard/situacoes")) {
+        for (String rota : List.of(ROTA, "/api/dashboard/vendas", "/api/dashboard/situacoes",
+                "/api/dashboard/produtos-mais-vendidos")) {
             mvc.perform(get(rota).with(user("gerente").roles("GERENTE"))
                         .param("dataInicio", inicio).param("dataFim", fim))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.erro").isNotEmpty());
@@ -82,7 +86,8 @@ class DashboardSecurityTest {
     @ParameterizedTest
     @ValueSource(strings = {"dataInicio", "dataFim"})
     void exigeAmbasAsDatas(String parametro) throws Exception {
-        for (String rota : List.of(ROTA, "/api/dashboard/vendas", "/api/dashboard/situacoes")) {
+        for (String rota : List.of(ROTA, "/api/dashboard/vendas", "/api/dashboard/situacoes",
+                "/api/dashboard/produtos-mais-vendidos")) {
             mvc.perform(get(rota).with(user("gerente").roles("GERENTE")).param(parametro, "2026-10-01"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.erro").isNotEmpty());
         }
@@ -100,6 +105,50 @@ class DashboardSecurityTest {
                         .param("dataInicio", "2026-10-01").param("dataFim", "2026-10-31"))
                 .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.erro").isNotEmpty());
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "GERENTE"})
+    void consultaRankingEmJson(String perfil) throws Exception {
+        ItemPedido item = new ItemPedido();
+        item.setProdutoId("pizza");
+        item.setNomeProduto("Pizza de queijo");
+        item.setQuantidade(3);
+        Pedido pedido = new Pedido();
+        pedido.setStatus("FINALIZADO");
+        pedido.setDataHoraEntrada(LocalDateTime.of(2026, 10, 2, 20, 30));
+        pedido.setItens(List.of(item));
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(pedido));
+        mvc.perform(get("/api/dashboard/produtos-mais-vendidos").with(user("usuario").roles(perfil))
+                        .param("dataInicio", "2026-10-01").param("dataFim", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].produtoId").value("pizza"))
+                .andExpect(jsonPath("$[0].nomeProduto").value("Pizza de queijo"))
+                .andExpect(jsonPath("$[0].quantidadeVendida").value(3));
+    }
+
+    @Test
+    void retornaRankingVazioQuandoNaoHaVendas() throws Exception {
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of());
+        mvc.perform(get("/api/dashboard/produtos-mais-vendidos").with(user("gerente").roles("GERENTE"))
+                        .param("dataInicio", "2026-10-01").param("dataFim", "2026-10-31"))
+                .andExpect(status().isOk()).andExpect(content().json("[]"));
+    }
+
+    @Test
+    void informaErroQuandoPedidoFinalizadoEstaSemItens() throws Exception {
+        Pedido pedido = new Pedido();
+        pedido.setStatus("FINALIZADO");
+        pedido.setDataHoraEntrada(LocalDateTime.of(2026, 10, 2, 20, 30));
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(pedido));
+        mvc.perform(get("/api/dashboard/produtos-mais-vendidos").with(user("gerente").roles("GERENTE"))
+                        .param("dataInicio", "2026-10-01").param("dataFim", "2026-10-31"))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.erro").isNotEmpty());
     }
 
     @ParameterizedTest
