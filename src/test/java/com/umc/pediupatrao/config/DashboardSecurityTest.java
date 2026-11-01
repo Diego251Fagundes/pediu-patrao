@@ -54,14 +54,14 @@ class DashboardSecurityTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas"})
+    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas", "/api/dashboard/situacoes"})
     void exigeAutenticacaoSemRedirecionarParaHtml(String rota) throws Exception {
         mvc.perform(get(rota)).andExpect(status().isUnauthorized());
         verifyNoInteractions(pedidoRepository);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas"})
+    @ValueSource(strings = {"/api/dashboard/indicadores", "/api/dashboard/vendas", "/api/dashboard/situacoes"})
     void atendenteNaoConsultaDashboard(String rota) throws Exception {
         mvc.perform(get(rota).with(user("atendente").roles("ATENDENTE")))
                 .andExpect(status().isForbidden());
@@ -71,7 +71,7 @@ class DashboardSecurityTest {
     @ParameterizedTest
     @CsvSource({"2026-10-31,2026-10-01", "invalida,2026-10-31", "2026-02-30,2026-10-31"})
     void rejeitaDatasInvalidas(String inicio, String fim) throws Exception {
-        for (String rota : List.of(ROTA, "/api/dashboard/vendas")) {
+        for (String rota : List.of(ROTA, "/api/dashboard/vendas", "/api/dashboard/situacoes")) {
             mvc.perform(get(rota).with(user("gerente").roles("GERENTE"))
                         .param("dataInicio", inicio).param("dataFim", fim))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.erro").isNotEmpty());
@@ -82,7 +82,7 @@ class DashboardSecurityTest {
     @ParameterizedTest
     @ValueSource(strings = {"dataInicio", "dataFim"})
     void exigeAmbasAsDatas(String parametro) throws Exception {
-        for (String rota : List.of(ROTA, "/api/dashboard/vendas")) {
+        for (String rota : List.of(ROTA, "/api/dashboard/vendas", "/api/dashboard/situacoes")) {
             mvc.perform(get(rota).with(user("gerente").roles("GERENTE")).param(parametro, "2026-10-01"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.erro").isNotEmpty());
         }
@@ -100,6 +100,36 @@ class DashboardSecurityTest {
                         .param("dataInicio", "2026-10-01").param("dataFim", "2026-10-31"))
                 .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.erro").isNotEmpty());
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "GERENTE"})
+    void consultaSituacoesEmJson(String perfil) throws Exception {
+        Pedido recebido = new Pedido();
+        recebido.setStatus("RECEBIDO");
+        Pedido cancelado = new Pedido();
+        cancelado.setStatus("CANCELADO");
+        when(pedidoRepository.findByDataHoraEntradaGreaterThanEqualAndDataHoraEntradaLessThan(any(), any()))
+                .thenReturn(List.of(recebido, cancelado));
+        mvc.perform(get("/api/dashboard/situacoes").with(user("usuario").roles(perfil))
+                        .param("dataInicio", "2026-10-01").param("dataFim", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.length()").value(7))
+                .andExpect(jsonPath("$[0].status").value("RECEBIDO"))
+                .andExpect(jsonPath("$[0].quantidadePedidos").value(1))
+                .andExpect(jsonPath("$[1].status").value("EM_PREPARACAO"))
+                .andExpect(jsonPath("$[1].quantidadePedidos").value(0))
+                .andExpect(jsonPath("$[2].status").value("PRONTO"))
+                .andExpect(jsonPath("$[2].quantidadePedidos").value(0))
+                .andExpect(jsonPath("$[3].status").value("SAIU_PARA_ENTREGA"))
+                .andExpect(jsonPath("$[3].quantidadePedidos").value(0))
+                .andExpect(jsonPath("$[4].status").value("RETIRADO"))
+                .andExpect(jsonPath("$[4].quantidadePedidos").value(0))
+                .andExpect(jsonPath("$[5].status").value("FINALIZADO"))
+                .andExpect(jsonPath("$[5].quantidadePedidos").value(0))
+                .andExpect(jsonPath("$[6].status").value("CANCELADO"))
+                .andExpect(jsonPath("$[6].quantidadePedidos").value(1));
     }
 
     @ParameterizedTest

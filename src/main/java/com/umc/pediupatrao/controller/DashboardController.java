@@ -1,6 +1,7 @@
 package com.umc.pediupatrao.controller;
 
 import com.umc.pediupatrao.dto.IndicadoresDashboard;
+import com.umc.pediupatrao.dto.SituacaoPedido;
 import com.umc.pediupatrao.dto.VendaDiaria;
 import com.umc.pediupatrao.service.DashboardService;
 import java.time.LocalDate;
@@ -37,6 +38,13 @@ public class DashboardController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim) {
         return dashboardService.consultarVendasDiarias(dataInicio, dataFim);
+    }
+
+    @GetMapping("/situacoes")
+    public List<SituacaoPedido> situacoes(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim) {
+        return dashboardService.consultarSituacoes(dataInicio, dataFim);
     }
 
     @ExceptionHandler({IllegalArgumentException.class, MissingServletRequestParameterException.class,
