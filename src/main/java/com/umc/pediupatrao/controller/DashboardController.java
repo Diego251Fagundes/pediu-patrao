@@ -1,6 +1,7 @@
 package com.umc.pediupatrao.controller;
 
 import com.umc.pediupatrao.dto.IndicadoresDashboard;
+import com.umc.pediupatrao.dto.ProdutoMaisVendido;
 import com.umc.pediupatrao.dto.SituacaoPedido;
 import com.umc.pediupatrao.dto.VendaDiaria;
 import com.umc.pediupatrao.service.DashboardService;
@@ -47,6 +48,13 @@ public class DashboardController {
         return dashboardService.consultarSituacoes(dataInicio, dataFim);
     }
 
+    @GetMapping("/produtos-mais-vendidos")
+    public List<ProdutoMaisVendido> produtosMaisVendidos(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim) {
+        return dashboardService.consultarProdutosMaisVendidos(dataInicio, dataFim);
+    }
+
     @ExceptionHandler({IllegalArgumentException.class, MissingServletRequestParameterException.class,
         MethodArgumentTypeMismatchException.class})
     public ResponseEntity<Map<String, String>> tratarPeriodoInvalido(Exception exception) {
@@ -57,6 +65,6 @@ public class DashboardController {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> tratarDadosInconsistentes() {
         return ResponseEntity.internalServerError().body(Map.of("erro",
-                "Não foi possível calcular as vendas. Verifique os valores dos pedidos finalizados."));
+                "Não foi possível calcular os dados do dashboard. Verifique os pedidos finalizados."));
     }
 }

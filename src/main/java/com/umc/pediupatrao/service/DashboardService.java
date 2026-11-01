@@ -1,14 +1,17 @@
 package com.umc.pediupatrao.service;
 
 import com.umc.pediupatrao.dto.IndicadoresDashboard;
+import com.umc.pediupatrao.dto.ProdutoMaisVendido;
 import com.umc.pediupatrao.dto.SituacaoPedido;
 import com.umc.pediupatrao.dto.VendaDiaria;
 import com.umc.pediupatrao.entity.Pedido;
+import com.umc.pediupatrao.entity.ItemPedido;
 import com.umc.pediupatrao.repository.PedidoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +80,37 @@ public class DashboardService {
         }
         return quantidades.entrySet().stream()
                 .map(entrada -> new SituacaoPedido(entrada.getKey(), entrada.getValue()))
+                .toList();
+    }
+
+    public List<ProdutoMaisVendido> consultarProdutosMaisVendidos(LocalDate dataInicio, LocalDate dataFim) {
+        List<Pedido> finalizados = consultarPedidosNoPeriodo(dataInicio, dataFim).stream()
+                .filter(pedido -> "FINALIZADO".equals(pedido.getStatus()))
+                .sorted(Comparator.comparing(Pedido::getDataHoraEntrada).reversed()
+                        .thenComparing(Pedido::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        Map<String, ProdutoMaisVendido> produtos = new LinkedHashMap<>();
+        for (Pedido pedido : finalizados) {
+            if (pedido.getItens() == null || pedido.getItens().isEmpty()) {
+                throw new IllegalStateException("Pedido finalizado sem itens.");
+            }
+            for (ItemPedido item : pedido.getItens()) {
+                if (item == null || item.getProdutoId() == null || item.getProdutoId().isBlank()
+                        || item.getNomeProduto() == null || item.getNomeProduto().isBlank()
+                        || item.getQuantidade() <= 0) {
+                    throw new IllegalStateException("Pedido finalizado com item inválido.");
+                }
+                // Preserva o nome do registro mais recente, mesmo se o catálogo tiver sido alterado.
+                produtos.merge(item.getProdutoId(), new ProdutoMaisVendido(
+                        item.getProdutoId(), item.getNomeProduto(), item.getQuantidade()),
+                        (anterior, atual) -> new ProdutoMaisVendido(anterior.produtoId(), anterior.nomeProduto(),
+                                anterior.quantidadeVendida() + atual.quantidadeVendida()));
+            }
+        }
+        return produtos.values().stream()
+                .sorted(Comparator.comparingLong(ProdutoMaisVendido::quantidadeVendida).reversed()
+                        .thenComparing(ProdutoMaisVendido::produtoId))
+                .limit(5)
                 .toList();
     }
 
