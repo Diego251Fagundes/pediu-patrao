@@ -55,6 +55,7 @@ public class HomeController {
         model.addAttribute("podeRegistrarPedidos", request.isUserInRole("GERENTE") || request.isUserInRole("ATENDENTE"));
         model.addAttribute("podeGerenciarPedidos", request.isUserInRole("GERENTE"));
         model.addAttribute("podeConsultarAuditoria", request.isUserInRole("ADMIN") || request.isUserInRole("GERENTE"));
+        model.addAttribute("podeConsultarDashboard", request.isUserInRole("ADMIN") || request.isUserInRole("GERENTE"));
     }
 
     @GetMapping("/login")
@@ -64,7 +65,8 @@ public class HomeController {
 
     @GetMapping("/")
     public String home(Model model) {
-        model.addAttribute("content", "home :: content");
+        boolean podeConsultarDashboard = Boolean.TRUE.equals(model.getAttribute("podeConsultarDashboard"));
+        model.addAttribute("content", podeConsultarDashboard ? "dashboard :: content" : "home :: content");
         return "layout";
     }
 
