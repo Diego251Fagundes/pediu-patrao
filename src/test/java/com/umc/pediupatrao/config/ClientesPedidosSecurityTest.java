@@ -67,6 +67,27 @@ class ClientesPedidosSecurityTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "GERENTE"})
+    void inicioExibeDashboardParaAdminEGerente(String perfil) throws Exception {
+        mvc.perform(get("/").with(user("usuario").roles(perfil)))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("content", "dashboard :: content"))
+                .andExpect(content().string(containsString("id=\"dashboard\"")))
+                .andExpect(content().string(containsString("/js/dashboard.js")));
+        verifyNoInteractions(pedidoRepository);
+    }
+
+    @Test
+    void inicioDoAtendenteMantemBoasVindasSemDashboard() throws Exception {
+        mvc.perform(get("/").with(user("atendente").roles("ATENDENTE")))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("content", "home :: content"))
+                .andExpect(content().string(containsString("Bem-vindo")))
+                .andExpect(content().string(not(containsString("/js/dashboard.js"))))
+                .andExpect(content().string(not(containsString("id=\"dashboard\""))));
+    }
+
     @Test
     void consultasExigemAutenticacao() throws Exception {
         for (String rota : new String[]{"/clientes", "/api/clientes", "/pedidos", "/api/pedidos"}) {

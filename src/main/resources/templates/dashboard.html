@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head><title>Dashboard administrativo</title></head>
+<body>
+<section th:fragment="content" id="dashboard" th:data-api="@{/api/dashboard/}"
+         aria-labelledby="dashboard-titulo">
+    <header class="mb-4">
+        <h1 id="dashboard-titulo" class="h2 fw-bold mb-2">Dashboard de vendas</h1>
+        <p class="text-muted mb-0">Acompanhe as vendas e os pedidos do estabelecimento.</p>
+    </header>
+
+    <form id="dashboard-filtros" class="dashboard-filtros mb-4">
+        <div>
+            <label for="data-inicio" class="form-label">Data inicial</label>
+            <input id="data-inicio" name="dataInicio" type="date" class="form-control" required>
+        </div>
+        <div>
+            <label for="data-fim" class="form-label">Data final</label>
+            <input id="data-fim" name="dataFim" type="date" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+        <button type="button" id="dashboard-atualizar" class="btn btn-outline-secondary">Atualizar</button>
+    </form>
+
+    <div id="dashboard-erro" class="alert alert-danger" role="alert" hidden></div>
+    <p id="dashboard-status" class="small text-muted" role="status" aria-live="polite">Carregando dados…</p>
+    <noscript><p class="alert alert-warning">Ative o JavaScript para consultar o dashboard.</p></noscript>
+
+    <div id="dashboard-resultados" aria-busy="true" hidden>
+        <p id="dashboard-vazio" class="alert alert-info" hidden>Nenhum pedido encontrado neste período. Experimente outras datas.</p>
+        <dl class="dashboard-indicadores">
+            <div><dt>Valor das vendas</dt><dd id="valor-vendas">—</dd></div>
+            <div><dt>Pedidos finalizados</dt><dd id="pedidos-finalizados">—</dd></div>
+            <div><dt>Ticket médio</dt><dd id="ticket-medio">—</dd></div>
+            <div><dt>Total de pedidos</dt><dd id="total-pedidos">—</dd></div>
+            <div><dt>Pedidos cancelados</dt><dd id="pedidos-cancelados">—</dd></div>
+        </dl>
+        <p class="small text-muted">Vendas e ticket médio consideram pedidos finalizados, com os descontos registrados.
+            O período é consultado pela data de entrada do pedido.</p>
+        <p id="dashboard-aviso-graficos" class="alert alert-warning" hidden>Os gráficos não puderam ser exibidos. Consulte os valores nas tabelas abaixo.</p>
+        <div class="dashboard-graficos">
+            <section class="dashboard-secao" aria-labelledby="titulo-vendas">
+                <h2 id="titulo-vendas" class="h5 fw-bold">Vendas por dia</h2>
+                <p id="vendas-vazias" class="small text-muted" hidden>Nenhuma venda finalizada neste período.</p>
+                <div class="dashboard-grafico"><canvas id="grafico-vendas" role="img" aria-label="Gráfico do valor das vendas por dia. Os valores estão disponíveis na tabela abaixo."></canvas></div>
+                <details class="mt-3">
+                    <summary>Consultar vendas em tabela</summary>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm align-middle">
+                            <caption class="visually-hidden">Vendas diárias no período consultado</caption>
+                            <thead><tr><th scope="col">Data</th><th scope="col" class="text-end">Finalizados</th><th scope="col" class="text-end">Valor</th></tr></thead>
+                            <tbody id="tabela-vendas"></tbody>
+                        </table>
+                    </div>
+                </details>
+            </section>
+            <section class="dashboard-secao" aria-labelledby="titulo-situacoes">
+                <h2 id="titulo-situacoes" class="h5 fw-bold">Situação dos pedidos</h2>
+                <div class="dashboard-grafico"><canvas id="grafico-situacoes" role="img" aria-label="Gráfico da quantidade de pedidos por situação. Os valores estão disponíveis na tabela abaixo."></canvas></div>
+                <details class="mt-3">
+                    <summary>Consultar situações em tabela</summary>
+                    <table class="table table-sm mt-2">
+                        <caption class="visually-hidden">Quantidade de pedidos por situação no período consultado</caption>
+                        <thead><tr><th scope="col">Situação</th><th scope="col" class="text-end">Pedidos</th></tr></thead>
+                        <tbody id="tabela-situacoes"></tbody>
+                    </table>
+                </details>
+            </section>
+        </div>
+        <section class="dashboard-secao mt-4" aria-labelledby="titulo-ranking">
+            <h2 id="titulo-ranking" class="h5 fw-bold">Produtos mais vendidos</h2>
+            <p class="small text-muted">Até cinco produtos, por unidades em pedidos finalizados no período.</p>
+            <p id="ranking-vazio" hidden>Nenhum produto vendido neste período.</p>
+            <table id="ranking-tabela" class="table align-middle">
+                <caption class="visually-hidden">Ranking dos produtos mais vendidos</caption>
+                <thead><tr><th scope="col">Posição</th><th scope="col">Produto</th><th scope="col" class="text-end">Unidades</th></tr></thead>
+                <tbody id="tabela-ranking"></tbody>
+            </table>
+        </section>
+    </div>
+</section>
+</body>
+</html>
